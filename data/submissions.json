@@ -27,5 +27,70 @@
     "type": "interest_signup",
     "timestamp": "2025-12-18T12:12:14.966Z",
     "receivedAt": "2025-12-18T12:12:14.989Z"
+  },
+  {
+    "id": "2726aec5-dc1e-41ae-8353-36966ef3c747",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "forest",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T12:04:24.349Z",
+    "receivedAt": "2026-01-09T12:04:24.492Z"
+  },
+  {
+    "id": "f804b015-c3cb-4865-b4f4-41ce67f697d0",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "crystal",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:02:58.931Z",
+    "receivedAt": "2026-01-09T13:02:58.943Z"
+  },
+  {
+    "id": "7c2c729a-be40-48eb-9d90-631490897af8",
+    "email": "enqurko@gmail.com",
+    "selectedProduct": "forest",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:03:18.815Z",
+    "receivedAt": "2026-01-09T13:03:18.830Z"
+  },
+  {
+    "id": "78b3b200-fc81-4997-994d-c36b93b306ec",
+    "email": "enqurko@gmail.com",
+    "selectedProduct": "volcano",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:30:50.479Z",
+    "receivedAt": "2026-01-09T13:30:48.681Z"
+  },
+  {
+    "id": "194cf1bc-100c-4483-8f34-38148abff834",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "sky",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:33:55.687Z",
+    "receivedAt": "2026-01-09T13:33:55.701Z"
+  },
+  {
+    "id": "33573c2c-1c25-4473-8c62-d5a12599a0aa",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "volcano",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:37:43.553Z",
+    "receivedAt": "2026-01-09T13:37:43.567Z"
+  },
+  {
+    "id": "b18e6a6e-fe0b-4fbf-bebe-24d419b7d4ee",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "sky",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:44:28.552Z",
+    "receivedAt": "2026-01-09T13:44:28.562Z"
+  },
+  {
+    "id": "538d8196-a27c-4eff-a6b1-abe1337f7e60",
+    "email": "iambielmir@gmail.com",
+    "worldType": "sky",
+    "selectedProduct": "keychain",
+    "type": "quiz_complete",
+    "timestamp": "2026-01-09T13:56:27.594Z",
+    "receivedAt": "2026-01-09T13:56:27.742Z"
   }
 ]

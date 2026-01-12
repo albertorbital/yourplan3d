@@ -2,11 +2,13 @@ import Hero from '@/components/Hero';
 import PersonalityForm from '@/components/PersonalityForm';
 import PersonalityExamples from '@/components/PersonalityExamples';
 import ProductVariants from '@/components/ProductVariants';
+import WorldQuiz from '@/components/WorldQuiz';
 
 export default function Home() {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Hero />
+      <WorldQuiz />
       <PersonalityExamples />
       <ProductVariants />
       <PersonalityForm />
