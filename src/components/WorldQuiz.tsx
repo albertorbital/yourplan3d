@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import { useState, useEffect, useMemo } from 'react';
 import styles from './WorldQuiz.module.css';
+import { useImagePreloader } from '@/hooks/useImagePreloader';
+import { PlanetCanvas } from './PlanetCanvas';
 
 const questions = [
     {
@@ -86,38 +88,12 @@ export default function WorldQuiz() {
     };
 
     const currentQuestion = questions[currentQuestionIndex];
+    const { images, isLoading } = useImagePreloader(currentQuestion);
 
-    const currentImage = useMemo(() => {
-        const folder = `/1_Quiz Planet Images/${currentQuestion.folder}`;
-        let subFolder = '';
-        let prefix = '';
-        let frame = 0;
+    // Removed old currentImage memo logic
 
-        if (sliderValue === 50) {
-            // Pure blank state - we can use the first frame of either low or high (assuming both start from blank)
-            // or just pick one. Let's pick low_00.
-            return `${folder}/${currentQuestion.lowPrefix}/${currentQuestion.lowPrefix}_00.png`;
-        } else if (sliderValue < 50) {
-            // Low side: 50 -> 0 (0-20 frames)
-            // 50 value -> index 0
-            // 0 value -> index 19
-            subFolder = currentQuestion.lowPrefix;
-            prefix = currentQuestion.lowPrefix;
-            frame = Math.floor(((50 - sliderValue) / 50) * 19);
-        } else {
-            // High side: 50 -> 100 (0-20 frames)
-            // 50 value -> index 0
-            // 100 value -> index 19
-            subFolder = currentQuestion.highPrefix;
-            prefix = currentQuestion.highPrefix;
-            frame = Math.floor(((sliderValue - 50) / 50) * 19);
-        }
 
-        const frameStr = frame.toString().padStart(2, '0');
-        // The prefixes in the filenames actually match the lowPrefix/highPrefix
-        // e.g. /1_Quiz Planet Images/1_How empathetic are you_/1_low/1_low_00.png
-        return `${folder}/${subFolder}/${prefix}_${frameStr}.png`;
-    }, [sliderValue, currentQuestion]);
+
 
     const handleNext = () => {
         const newAnswers = { ...answers, [currentQuestion.id]: sliderValue };
@@ -193,14 +169,18 @@ export default function WorldQuiz() {
                                     className={`${styles.planetImageWrapper} ${styles.active}`}
                                     style={{ '--glow-color': currentQuestion.color } as React.CSSProperties}
                                 >
-                                    <Image
-                                        src={currentImage}
-                                        alt="Planet transition"
-                                        fill
-                                        sizes="(max-width: 768px) 90vw, 500px"
-                                        className={styles.planetIcon}
-                                        priority={true}
-                                    />
+                                    {!images || isLoading ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.5)' }}>
+                                            Loading Essence...
+                                        </div>
+                                    ) : (
+                                        <PlanetCanvas
+                                            images={images}
+                                            sliderValue={sliderValue}
+                                            width={500}
+                                            height={500}
+                                        />
+                                    )}
                                 </div>
                             </div>
                         </div>
