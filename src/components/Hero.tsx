@@ -48,7 +48,13 @@ export default function Hero() {
                     </span>
                 </h1>
 
-                <div className={styles.visual}>
+                <div
+                    className={styles.visual}
+                    style={{
+                        '--gradient-start': gradientColors.start,
+                        '--gradient-end': gradientColors.end,
+                    } as React.CSSProperties}
+                >
                     <Carousel images={heroImages} onIndexChange={handleCarouselChange} />
                 </div>
 
@@ -59,6 +65,13 @@ export default function Hero() {
                 <p className={styles.subtitle}>
                     A custom 3D printed masterpiece evolved from your unique Big 5 personality profile.
                 </p>
+
+                <div className={styles.scrollIndicator}>
+                    <div className={styles.mouse}>
+                        <div className={styles.wheel}></div>
+                    </div>
+                    <span>Scroll to explore</span>
+                </div>
             </div>
         </section>
     );

@@ -4,13 +4,41 @@
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    /* Full viewport height */
     text-align: center;
     padding: 2rem 1rem;
-    /* Reduced padding for mobile */
-    background: radial-gradient(circle at center, #1a1a1a 0%, var(--background) 70%);
+    background: radial-gradient(circle at center, rgba(30, 27, 75, 0.4) 0%, rgba(15, 23, 42, 0) 100%);
     overflow: hidden;
-    /* Prevent scrollbars if animations go slightly off */
+    position: relative;
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        radial-gradient(white 1px, transparent 1px),
+        radial-gradient(white 1px, transparent 1px);
+    background-size: 50px 50px, 100px 100px;
+    background-position: 0 0, 25px 25px;
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 1;
+    animation: starsPulse 10s ease-in-out infinite alternate;
+}
+
+@keyframes starsPulse {
+    from {
+        opacity: 0.1;
+        transform: scale(1);
+    }
+
+    to {
+        opacity: 0.2;
+        transform: scale(1.05);
+    }
 }
 
 .container {
@@ -62,12 +90,52 @@
 .visual {
     position: relative;
     width: 280px;
-    /* Good size for most mobiles */
     height: 280px;
-    margin: 0.5rem 0;
-    /* Minimal vertical margin */
+    margin: 1rem 0;
     flex-shrink: 0;
-    /* Prevent crushing */
+    z-index: 10;
+    border-radius: 50%;
+    animation: floating 6s ease-in-out infinite;
+}
+
+@keyframes floating {
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-20px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+.visual::after {
+    content: '';
+    position: absolute;
+    inset: -20px;
+    background: radial-gradient(circle, var(--gradient-start, #4f46e5) 0%, transparent 70%);
+    opacity: 0.3;
+    filter: blur(20px);
+    z-index: -1;
+    animation: pulseGlow 4s ease-in-out infinite;
+    transition: background 1s ease;
+}
+
+@keyframes pulseGlow {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.3;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.5;
+    }
 }
 
 .ctaButton {
@@ -83,6 +151,37 @@
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
     z-index: 10;
     white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+}
+
+.ctaButton::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.6),
+            transparent);
+    transition: none;
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+
+    20% {
+        left: 100%;
+    }
+
+    100% {
+        left: 100%;
+    }
 }
 
 .ctaButton:hover {
@@ -123,6 +222,68 @@
 
     .subtitle {
         font-size: 1.25rem;
+    }
+}
+
+.scrollIndicator {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0;
+    animation: fadeIn 1s ease-out 2s forwards;
+    z-index: 10;
+    color: #a3a3a3;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
+.mouse {
+    width: 20px;
+    height: 35px;
+    border: 2px solid #a3a3a3;
+    border-radius: 10px;
+    position: relative;
+}
+
+.wheel {
+    width: 2px;
+    height: 6px;
+    background: #a3a3a3;
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: scrollWheel 2s infinite;
+}
+
+@keyframes scrollWheel {
+    0% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(15px);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
     }
 }
 
