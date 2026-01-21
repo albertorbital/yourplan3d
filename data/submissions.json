@@ -27,5 +27,173 @@
     "type": "interest_signup",
     "timestamp": "2025-12-18T12:12:14.966Z",
     "receivedAt": "2025-12-18T12:12:14.989Z"
+  },
+  {
+    "id": "2726aec5-dc1e-41ae-8353-36966ef3c747",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "forest",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T12:04:24.349Z",
+    "receivedAt": "2026-01-09T12:04:24.492Z"
+  },
+  {
+    "id": "f804b015-c3cb-4865-b4f4-41ce67f697d0",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "crystal",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:02:58.931Z",
+    "receivedAt": "2026-01-09T13:02:58.943Z"
+  },
+  {
+    "id": "7c2c729a-be40-48eb-9d90-631490897af8",
+    "email": "enqurko@gmail.com",
+    "selectedProduct": "forest",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:03:18.815Z",
+    "receivedAt": "2026-01-09T13:03:18.830Z"
+  },
+  {
+    "id": "78b3b200-fc81-4997-994d-c36b93b306ec",
+    "email": "enqurko@gmail.com",
+    "selectedProduct": "volcano",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:30:50.479Z",
+    "receivedAt": "2026-01-09T13:30:48.681Z"
+  },
+  {
+    "id": "194cf1bc-100c-4483-8f34-38148abff834",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "sky",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:33:55.687Z",
+    "receivedAt": "2026-01-09T13:33:55.701Z"
+  },
+  {
+    "id": "33573c2c-1c25-4473-8c62-d5a12599a0aa",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "volcano",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:37:43.553Z",
+    "receivedAt": "2026-01-09T13:37:43.567Z"
+  },
+  {
+    "id": "b18e6a6e-fe0b-4fbf-bebe-24d419b7d4ee",
+    "email": "iambielmir@gmail.com",
+    "selectedProduct": "sky",
+    "type": "quiz_start",
+    "timestamp": "2026-01-09T13:44:28.552Z",
+    "receivedAt": "2026-01-09T13:44:28.562Z"
+  },
+  {
+    "id": "538d8196-a27c-4eff-a6b1-abe1337f7e60",
+    "email": "iambielmir@gmail.com",
+    "worldType": "sky",
+    "selectedProduct": "keychain",
+    "type": "quiz_complete",
+    "timestamp": "2026-01-09T13:56:27.594Z",
+    "receivedAt": "2026-01-09T13:56:27.742Z"
+  },
+  {
+    "id": "da2df060-b223-436c-a894-1962e9e6115e",
+    "email": "test@example.com",
+    "quizAnswers": {
+      "empathy": 100,
+      "sociable": 100,
+      "persistent": 100,
+      "curious": 100,
+      "relaxed": 100
+    },
+    "selectedProduct": "lamp",
+    "type": "quiz_complete_v2",
+    "timestamp": "2026-01-21T09:56:41.953Z",
+    "receivedAt": "2026-01-21T09:56:42.235Z"
+  },
+  {
+    "id": "fb240b9d-e5b2-491e-aad6-bf6c3a219df3",
+    "email": "test@example.com",
+    "quizAnswers": {
+      "empathy": 50,
+      "sociable": 50,
+      "persistent": 50,
+      "curious": 50,
+      "relaxed": 50
+    },
+    "selectedProduct": "artifact_1",
+    "type": "quiz_complete_v2",
+    "timestamp": "2026-01-21T10:25:54.347Z",
+    "receivedAt": "2026-01-21T10:25:54.368Z"
+  },
+  {
+    "id": "ecfe6ca3-9691-4906-9485-255e9d13bcae",
+    "email": "test@example.com",
+    "quizAnswers": {
+      "empathy": 50,
+      "sociable": 50,
+      "persistent": 50,
+      "curious": 50,
+      "relaxed": 50
+    },
+    "selectedProduct": "artifact_1",
+    "type": "quiz_complete_v2",
+    "timestamp": "2026-01-21T10:29:23.677Z",
+    "receivedAt": "2026-01-21T10:29:23.685Z"
+  },
+  {
+    "id": "c71fc10c-c6d3-468e-a9ec-118a9ec09cf4",
+    "email": "asdf@asd.com",
+    "quizAnswers": {
+      "empathy": 0,
+      "sociable": 22,
+      "persistent": 46,
+      "curious": 57,
+      "relaxed": 89
+    },
+    "selectedProduct": "artifact_1",
+    "format": "Digital",
+    "price": 0,
+    "wishlistedItems": [
+      "Poster"
+    ],
+    "type": "quiz_complete_v3",
+    "timestamp": "2026-01-21T11:16:44.447Z",
+    "receivedAt": "2026-01-21T11:16:44.474Z"
+  },
+  {
+    "id": "be953d56-034e-4099-a581-499a0aa1e8ef",
+    "email": "asdf@asdf.com",
+    "quizAnswers": {
+      "empathy": 47,
+      "sociable": 50,
+      "persistent": 50,
+      "curious": 50,
+      "relaxed": 50
+    },
+    "selectedProduct": "artifact_4",
+    "format": "Necklace",
+    "price": 24,
+    "wishlistedItems": [],
+    "type": "quiz_complete_v3",
+    "timestamp": "2026-01-21T12:00:52.730Z",
+    "receivedAt": "2026-01-21T12:00:52.752Z"
+  },
+  {
+    "id": "19227571-49e6-437a-b5b3-9c22f730691e",
+    "email": "test@test.com",
+    "quizAnswers": {
+      "empathy": 50,
+      "sociable": 50,
+      "persistent": 50,
+      "curious": 50,
+      "relaxed": 50
+    },
+    "selectedProduct": "artifact_5",
+    "format": "Earrings",
+    "price": 18,
+    "wishlistedItems": [
+      "Digital"
+    ],
+    "type": "quiz_complete_v3",
+    "timestamp": "2026-01-21T12:38:24.064Z",
+    "receivedAt": "2026-01-21T12:38:24.095Z"
   }
 ]

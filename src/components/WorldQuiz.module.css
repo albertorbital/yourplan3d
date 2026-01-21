@@ -1,0 +1,580 @@
+.quizSection {
+    position: relative;
+    padding: 6rem 1rem;
+    min-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, rgba(46, 16, 101, 0.4) 0%, rgba(15, 23, 42, 0.2) 100%);
+    overflow: hidden;
+    color: white;
+}
+
+/* Stars background effect */
+.quizSection::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        radial-gradient(white 1px, transparent 1px),
+        radial-gradient(white 1px, transparent 1px);
+    background-size: 50px 50px, 100px 100px;
+    background-position: 0 0, 25px 25px;
+    opacity: 0.1;
+    pointer-events: none;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3rem;
+    position: relative;
+    z-index: 10;
+}
+
+.stepperContainer {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.stepperLabel {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #a3a3a3;
+    font-weight: 500;
+}
+
+.progressBar {
+    width: 100%;
+    height: 4px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    width: 20%;
+    /* Step 1 of 5 */
+    border-radius: 2px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.questionTitle {
+    font-size: 2.5rem;
+    text-align: center;
+    margin-bottom: 2rem;
+    font-weight: 700;
+}
+
+.activeOptionDisplay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 2rem;
+    transform-style: preserve-3d;
+    transition: transform 0.5s ease;
+}
+
+.planetVisual {
+    width: min(90vw, 900px);
+    /* Massive size */
+    height: min(90vw, 900px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+    position: relative;
+    /* Removed filter transition from container, will apply per image */
+}
+
+.planetImageWrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    transform: scale(0.8);
+    pointer-events: none;
+    filter: drop-shadow(0 0 50px var(--glow-color, rgba(99, 102, 241, 0.3)));
+}
+
+.planetImageWrapper.active {
+    opacity: 1;
+    transform: scale(1);
+    z-index: 5;
+    animation: float 6s ease-in-out infinite;
+}
+
+.planetIcon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.optionLabel {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--glow-color, white);
+    transition: color 0.3s ease;
+}
+
+.optionDesc {
+    font-size: 1.1rem;
+    color: #cbd5e1;
+    max-width: 80%;
+}
+
+.sliderContainer {
+    width: 100%;
+    padding: 0 1rem;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+}
+
+/* Slider Track Ends (Circles) */
+.slider::before,
+.slider::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    top: 50%;
+    transform: translateY(-50%);
+    border: 2px solid #0f172a;
+}
+
+.slider::before {
+    left: 0;
+}
+
+.slider::after {
+    right: 0;
+}
+
+/* Slider Thumb */
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--glow-color, #6366f1);
+    box-shadow: 0 0 20px var(--glow-color, #6366f1);
+    cursor: pointer;
+    border: 4px solid white;
+    transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    z-index: 20;
+}
+
+.slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 30px var(--glow-color, #6366f1);
+}
+
+.slider:active::-webkit-slider-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0 40px var(--glow-color, #6366f1);
+    filter: brightness(1.2);
+}
+
+.slider::-moz-range-thumb {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--glow-color, #6366f1);
+    box-shadow: 0 0 20px var(--glow-color, #6366f1);
+    cursor: pointer;
+    border: 4px solid white;
+    transition: background-color 0.2s;
+    position: relative;
+    z-index: 20;
+}
+
+.continueBtn {
+    margin-top: 2rem;
+    padding: 1rem 4rem;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.continueBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(99, 102, 241, 0.6);
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-15px);
+    }
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    .quizSection {
+        padding: 2rem 1rem;
+        /* Reduced padding */
+        min-height: 100dvh;
+        /* Ensure full viewport consideration */
+        justify-content: space-between;
+        /* Distribute space */
+    }
+
+    .container {
+        gap: 1rem;
+        /* Reduced gap */
+        height: 100%;
+        justify-content: space-evenly;
+    }
+
+    .questionTitle {
+        font-size: 1.5rem;
+        /* Smaller title */
+        margin-bottom: 0.5rem;
+    }
+
+    .activeOptionDisplay {
+        margin-bottom: 0.5rem;
+        flex-grow: 1;
+        justify-content: center;
+    }
+
+    .planetVisual {
+        width: 100vw;
+        height: 80vw;
+        /* Reduced from 100vw to fit vertical space */
+        max-width: 350px;
+        max-height: 350px;
+        margin-bottom: 0.5rem;
+    }
+
+    .optionLabel {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .optionDesc {
+        font-size: 0.9rem;
+    }
+
+    .sliderContainer {
+        margin-bottom: 1rem;
+    }
+
+    .continueBtn {
+        margin-top: 0;
+        padding: 0.8rem 3rem;
+        margin-bottom: 1rem;
+        /* Add some bottom spacing */
+    }
+}
+
+.emailForm {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.emailInput {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50px;
+    color: white;
+    font-size: 1.1rem;
+    outline: none;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.emailInput:focus {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+.emailInput::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.emailSubtext {
+    color: #cbd5e1;
+    text-align: center;
+    font-size: 0.95rem;
+    margin-top: -0.5rem;
+}
+
+/* Artifact Carousel Styles */
+.carouselContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3rem;
+    width: 100%;
+    max-width: 900px;
+    margin: 3rem 0;
+    position: relative;
+}
+
+.carouselTrack {
+    position: relative;
+    width: 350px;
+    height: 550px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 1000px;
+}
+
+.carouselItem {
+    position: absolute;
+    width: 300px;
+    height: 500px;
+    background: transparent;
+    border: none;
+    border-radius: 32px;
+    padding: 2.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    cursor: pointer;
+    transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.activeItem {
+    background: rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 40px rgba(99, 102, 241, 0.3);
+}
+
+.artifactMainImageWrapper {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.artifactMainImageWrapper::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom,
+            rgba(15, 23, 42, 0.1) 0%,
+            rgba(15, 23, 42, 0.4) 50%,
+            rgba(15, 23, 42, 0.85) 100%);
+    z-index: 1;
+}
+
+.artifactMainImage {
+    object-fit: cover;
+}
+
+.artifactFormatTitle {
+    position: relative;
+    z-index: 2;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 1rem;
+    text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.wishlistBtn {
+    position: relative;
+    z-index: 2;
+    width: 90%;
+    padding: 0.8rem;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+    border: none;
+    color: white;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.wishlistBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+}
+
+.wishlistBtn.saved {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #cbd5e1;
+    box-shadow: none;
+}
+
+.promoText {
+    position: relative;
+    z-index: 2;
+    font-size: 0.85rem;
+    color: #818cf8;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+}
+
+.pricePillsContainer {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: center;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pricePill {
+    padding: 0.6rem 1rem;
+    border-radius: 100px;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex: 1;
+    max-width: 80px;
+    text-align: center;
+}
+
+.pricePill:hover {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: #38bdf8;
+}
+
+.activePill {
+    background: #38bdf8 !important;
+    color: white !important;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+}
+
+.navBtn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 50;
+    backdrop-filter: blur(5px);
+}
+
+.navBtn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #6366f1;
+    transform: scale(1.15);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+.successMessage {
+    text-align: center;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    .carouselContainer {
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+
+    .carouselTrack {
+        width: 240px;
+        height: 480px;
+    }
+
+    .carouselItem {
+        width: 220px;
+        height: 450px;
+        padding: 1.5rem;
+    }
+
+    .navBtn {
+        width: 48px;
+        height: 48px;
+        font-size: 1.5rem;
+    }
+
+    .artifactLabel {
+        font-size: 1.1rem;
+    }
+
+    .questionTitle {
+        font-size: 1.8rem;
+    }
+}
