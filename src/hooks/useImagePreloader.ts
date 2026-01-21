@@ -13,7 +13,7 @@ export const useImagePreloader = (currentQuestion: any) => {
         setIsLoading(true);
         setImages(null);
 
-        const folder = `/1_Quiz Planet Images/${currentQuestion.folder}`;
+        const folder = `/quiz_planet_images/${currentQuestion.folder}`;
         const lowImages: HTMLImageElement[] = [];
         const highImages: HTMLImageElement[] = [];
         let loadedCount = 0;
