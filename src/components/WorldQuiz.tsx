@@ -13,7 +13,7 @@ const questions = [
         folder: '1_How empathetic are you_',
         lowPrefix: '1_low',
         highPrefix: '1_high',
-        logo: '/1_Quiz Planet Images/1_How empathetic are you_/1_logo.png',
+        logo: '/quiz_planet_images/1_How empathetic are you_/1_logo.png',
         color: '#0ea5e9'
     },
     {
@@ -22,7 +22,7 @@ const questions = [
         folder: '2_How sociable are you_',
         lowPrefix: '2_low',
         highPrefix: '2_high',
-        logo: '/1_Quiz Planet Images/2_How sociable are you_/2_logo.png',
+        logo: '/quiz_planet_images/2_How sociable are you_/2_logo.png',
         color: '#22c55e'
     },
     {
@@ -31,7 +31,7 @@ const questions = [
         folder: '3_How persistent are you_',
         lowPrefix: '3_low',
         highPrefix: '3_high',
-        logo: '/1_Quiz Planet Images/3_How persistent are you_/3_logo.png',
+        logo: '/quiz_planet_images/3_How persistent are you_/3_logo.png',
         color: '#f97316'
     },
     {
@@ -40,7 +40,7 @@ const questions = [
         folder: '4_How curious are you_',
         lowPrefix: '4_low',
         highPrefix: '4_high',
-        logo: '/1_Quiz Planet Images/4_How curious are you_/4_logo.png',
+        logo: '/quiz_planet_images/4_How curious are you_/4_logo.png',
         color: '#38bdf8'
     },
     {
@@ -49,18 +49,18 @@ const questions = [
         folder: '5_How relaxed are you_',
         lowPrefix: '5_low',
         highPrefix: '5_high',
-        logo: '/1_Quiz Planet Images/5_How relaxed are you_/5_logo.png',
+        logo: '/quiz_planet_images/5_How relaxed are you_/5_logo.png',
         color: '#eab308'
     },
 ];
 
 const artifactOptions = [
-    { id: 'artifact_1', label: 'Digital - for free!', format: 'Digital', image: '/artifacts/Format_1.png', priceTiers: [0], subtitle: 'In which format would you like your planet?' },
-    { id: 'artifact_2', label: 'Poster', format: 'Poster', image: '/artifacts/Format_2.png', priceTiers: [12, 22, 35], subtitle: 'Get a 20% off!' },
-    { id: 'artifact_3', label: 'Lamp', format: 'Lamp', image: '/artifacts/Format_3.png', priceTiers: [45, 65, 95], subtitle: 'Get a 20% off!' },
-    { id: 'artifact_4', label: 'Necklace', format: 'Necklace', image: '/artifacts/Format_4.png', priceTiers: [24, 39, 55], subtitle: 'Get a 20% off!' },
-    { id: 'artifact_5', label: 'Earrings', format: 'Earrings', image: '/artifacts/Format_5.png', priceTiers: [18, 29, 42], subtitle: 'Get a 20% off!' },
-    { id: 'artifact_6', label: 'Bracelet', format: 'Bracelet', image: '/artifacts/Format_6.png', priceTiers: [15, 25, 35], subtitle: 'Get a 20% off!' },
+    { id: 'artifact_1', label: 'Digital - for free!', format: 'Digital', image: '/artifact/Format_1.png', priceTiers: [0], subtitle: 'In which format would you like your planet?' },
+    { id: 'artifact_2', label: 'Poster', format: 'Poster', image: '/artifact/Format_2.png', priceTiers: [12, 22, 35], subtitle: 'Get a 20% off!' },
+    { id: 'artifact_3', label: 'Lamp', format: 'Lamp', image: '/artifact/Format_3.png', priceTiers: [45, 65, 95], subtitle: 'Get a 20% off!' },
+    { id: 'artifact_4', label: 'Necklace', format: 'Necklace', image: '/artifact/Format_4.png', priceTiers: [24, 39, 55], subtitle: 'Get a 20% off!' },
+    { id: 'artifact_5', label: 'Earrings', format: 'Earrings', image: '/artifact/Format_5.png', priceTiers: [18, 29, 42], subtitle: 'Get a 20% off!' },
+    { id: 'artifact_6', label: 'Bracelet', format: 'Bracelet', image: '/artifact/Format_6.png', priceTiers: [15, 25, 35], subtitle: 'Get a 20% off!' },
 ];
 
 export default function WorldQuiz() {
@@ -148,7 +148,7 @@ export default function WorldQuiz() {
             <div className={styles.container}>
                 <div className={styles.headerLogo}>
                     <Image
-                        src={view === 'quiz' ? currentQuestion.logo : '/1_Quiz Planet Images/1_How empathetic are you_/1_logo.png'}
+                        src={view === 'quiz' ? currentQuestion.logo : '/quiz_planet_images/1_How empathetic are you_/1_logo.png'}
                         alt="Question Logo"
                         width={80}
                         height={80}
