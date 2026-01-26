@@ -5,6 +5,54 @@ import { useState, useEffect, useMemo } from 'react';
 import styles from './WorldQuiz.module.css';
 import { useImagePreloader } from '@/hooks/useImagePreloader';
 import { PlanetCanvas } from './PlanetCanvas';
+import { ArrowLeft, ArrowRight } from './Icons';
+
+type QuestionFeedback = {
+    low: string;
+    high: string;
+};
+
+const feedbackMessages: Record<string, QuestionFeedback> = {
+    'empathy': { low: "I'm like a desert", high: "I'm more like an ocean" },
+    'sociable': { low: "I'm more like a forest", high: "I'm energetic like magma!" },
+    'persistent': { low: "I orbit around many things!", high: "I like to keep my ring together" },
+    'curious': { low: "I deal with my own craters", high: "I like to discover new comets" },
+    'relaxed': { low: "I have some storms inside me", high: "I have a clear sky" },
+};
+
+type GlowColors = {
+    low: string;
+    high: string;
+};
+
+const glowColorMap: Record<string, GlowColors> = {
+    'empathy': { low: '#D9851E', high: '#3B82F6' },
+    'sociable': { low: '#22C55E', high: '#EF4444' },
+    'persistent': { low: '#C084FC', high: '#D9851E' },
+    'curious': { low: '#94A3B8', high: '#EAB308' },
+    'relaxed': { low: '#94A3B8', high: '#FFFFFF' },
+};
+
+const interpolateColor = (color1: string, color2: string, factor: number) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color1);
+    const result2 = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color2);
+
+    if (!result || !result2) return color1;
+
+    const r1 = parseInt(result[1], 16);
+    const g1 = parseInt(result[2], 16);
+    const b1 = parseInt(result[3], 16);
+
+    const r2 = parseInt(result2[1], 16);
+    const g2 = parseInt(result2[2], 16);
+    const b2 = parseInt(result2[3], 16);
+
+    const r = Math.round(r1 + factor * (r2 - r1));
+    const g = Math.round(g1 + factor * (g2 - g1));
+    const b = Math.round(b1 + factor * (b2 - b1));
+
+    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+};
 
 const questions = [
     {
@@ -68,6 +116,9 @@ export default function WorldQuiz() {
     const [sliderValue, setSliderValue] = useState(50);
     const [answers, setAnswers] = useState<Record<string, number>>({});
     const [view, setView] = useState<'quiz' | 'email' | 'artifact' | 'success'>('quiz');
+    const [showIdleOverlay, setShowIdleOverlay] = useState(true); // Start true for initial "Drag to start"
+    const [hasInteracted, setHasInteracted] = useState(false);
+    const idleTimerRef = useMemo(() => ({ current: null as NodeJS.Timeout | null }), []);
     const [email, setEmail] = useState('');
     const [selectedArtifact, setSelectedArtifact] = useState<string | null>(artifactOptions[0].id);
     const [submitting, setSubmitting] = useState(false);
@@ -95,6 +146,36 @@ export default function WorldQuiz() {
 
 
 
+    // Idle timer logic
+    useEffect(() => {
+        const resetTimer = () => {
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            idleTimerRef.current = setTimeout(() => {
+                setShowIdleOverlay(true);
+            }, 5000);
+        };
+
+        // Initialize timer
+        resetTimer();
+
+        // Cleanup
+        return () => {
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+        };
+    }, [sliderValue, currentQuestionIndex, idleTimerRef]); // Reset on these changes
+
+    const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSliderValue(Number(e.target.value));
+        setShowIdleOverlay(false); // Hide overlay on interaction
+        setHasInteracted(true);
+
+        // Reset timer on interaction
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = setTimeout(() => {
+            setShowIdleOverlay(true);
+        }, 5000);
+    };
+
     const handleNext = () => {
         const newAnswers = { ...answers, [currentQuestion.id]: sliderValue };
         setAnswers(newAnswers);
@@ -102,6 +183,8 @@ export default function WorldQuiz() {
         if (currentQuestionIndex < questions.length - 1) {
             setCurrentQuestionIndex(currentQuestionIndex + 1);
             setSliderValue(50); // Reset slider for next question
+            setHasInteracted(false); // Reset interaction state for next question
+            setShowIdleOverlay(true); // Show overlay again for new question
         } else {
             setView('email');
         }
@@ -143,6 +226,12 @@ export default function WorldQuiz() {
         }
     };
 
+    const currentGlowColor = useMemo(() => {
+        const colors = glowColorMap[currentQuestion.id];
+        if (!colors) return currentQuestion.color;
+        return interpolateColor(colors.low, colors.high, sliderValue / 100);
+    }, [currentQuestion.id, sliderValue, currentQuestion.color]);
+
     return (
         <section className={styles.quizSection} id="quiz">
             <div className={styles.container}>
@@ -162,12 +251,12 @@ export default function WorldQuiz() {
 
                         <div
                             className={styles.activeOptionDisplay}
-                            style={{ '--glow-color': currentQuestion.color } as React.CSSProperties}
+                            style={{ '--glow-color': currentGlowColor } as React.CSSProperties}
                         >
                             <div className={styles.planetVisual}>
                                 <div
                                     className={`${styles.planetImageWrapper} ${styles.active}`}
-                                    style={{ '--glow-color': currentQuestion.color } as React.CSSProperties}
+                                    style={{ '--glow-color': currentGlowColor } as React.CSSProperties}
                                 >
                                     {!images || isLoading ? (
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.5)' }}>
@@ -185,6 +274,25 @@ export default function WorldQuiz() {
                             </div>
                         </div>
 
+                        {/* Middle Content Overlay (Idle or Feedback) */}
+                        <div className={styles.overlayContainer}>
+                            {showIdleOverlay ? (
+                                <div className={styles.idleOverlay}>
+                                    <ArrowLeft className={`${styles.arrowIcon} ${styles.arrowLeft}`} />
+                                    <span className={styles.idleText}>Drag to start</span>
+                                    <ArrowRight className={`${styles.arrowIcon} ${styles.arrowRight}`} />
+                                </div>
+                            ) : (
+                                <div className={styles.feedbackContainer}>
+                                    <span key={`${currentQuestion.id}-${sliderValue < 50 ? 'low' : 'high'}`} className={styles.feedbackText}>
+                                        {sliderValue < 50
+                                            ? feedbackMessages[currentQuestion.id]?.low
+                                            : feedbackMessages[currentQuestion.id]?.high}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
                         <div className={styles.sliderContainer}>
                             <div className={styles.logoSliderWrapper}>
                                 <input
@@ -193,19 +301,35 @@ export default function WorldQuiz() {
                                     max="100"
                                     step="1"
                                     value={sliderValue}
-                                    onChange={(e) => setSliderValue(Number(e.target.value))}
+                                    onChange={handleSliderChange}
                                     className={styles.logoSlider}
                                     style={{
-                                        '--glow-color': currentQuestion.color,
-                                        '--thumb-image': `url('/Logo color.png')`
+                                        '--glow-color': currentGlowColor,
                                     } as React.CSSProperties}
                                     aria-label="Select your intensity"
                                 />
                                 <div className={styles.sliderTrackLine} />
+                                {/* Custom Thumb Overlay */}
+                                <div
+                                    className={styles.customThumb}
+                                    style={{
+                                        left: `calc(${sliderValue}% + (${8 - sliderValue * 0.16}px))`
+                                    }}
+                                >
+                                    {sliderValue}%
+                                </div>
                             </div>
                         </div>
 
-                        <button onClick={handleNext} className={styles.continueBtn}>
+                        <button
+                            onClick={handleNext}
+                            className={styles.continueBtn}
+                            style={{
+                                opacity: hasInteracted ? 1 : 0.5,
+                                pointerEvents: hasInteracted ? 'auto' : 'none',
+                                filter: hasInteracted ? 'none' : 'grayscale(0.5)'
+                            }}
+                        >
                             {currentQuestionIndex === questions.length - 1 ? 'Finish Essence' : 'Next Question'}
                         </button>
                     </>
