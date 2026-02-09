@@ -3,8 +3,8 @@
 import Image from 'next/image';
 import { useState, useEffect, useMemo } from 'react';
 import styles from './WorldQuiz.module.css';
-import { useImagePreloader } from '@/hooks/useImagePreloader';
-import { PlanetCanvas } from './PlanetCanvas';
+// import { useImagePreloader } from '@/hooks/useImagePreloader'; // Removed 2D preloader
+import { Planet3D } from './Planet3D';
 import { ArrowLeft, ArrowRight } from './Icons';
 
 type QuestionFeedback = {
@@ -156,7 +156,11 @@ export default function WorldQuiz() {
     };
 
     const currentQuestion = questions[currentQuestionIndex];
-    const { images, isLoading } = useImagePreloader(currentQuestion);
+    // const { images, isLoading } = useImagePreloader(currentQuestion); // Removed
+
+    // Construct URLs for the 3D textures (Sequence 19)
+    const lowUrl = `/quiz_planet_images/${currentQuestion.folder}/${currentQuestion.lowPrefix}/${currentQuestion.lowPrefix}_19.png`;
+    const highUrl = `/quiz_planet_images/${currentQuestion.folder}/${currentQuestion.highPrefix}/${currentQuestion.highPrefix}_19.png`;
 
     // Idle timer logic
     useEffect(() => {
@@ -352,20 +356,16 @@ export default function WorldQuiz() {
                                     className={`${styles.planetImageWrapper} ${styles.active}`}
                                     style={{ '--glow-color': currentGlowColor } as React.CSSProperties}
                                 >
-                                    {!images || isLoading ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.5)' }}>
-                                            Loading Essence...
-                                        </div>
-                                    ) : (
-                                        <PlanetCanvas
-                                            images={images}
-                                            sliderValue={sliderValue}
-                                            width={500}
-                                            height={500}
+                                    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                                        <Planet3D
+                                            values={questions.map((q, idx) => {
+                                                if (idx === currentQuestionIndex) return sliderValue;
+                                                return answers[q.id] ?? 50;
+                                            })}
                                             tintColor={tintInfo.color}
                                             tintOpacity={tintInfo.opacity}
                                         />
-                                    )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
