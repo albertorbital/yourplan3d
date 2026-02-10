@@ -13,8 +13,8 @@ type QuestionFeedback = {
 };
 
 const feedbackMessages: Record<string, QuestionFeedback> = {
-    'empathy': { low: "I'm like a desert", high: "I'm more like an ocean" },
-    'sociable': { low: "I'm more like a forest", high: "I'm energetic like magma!" },
+    'empathy': { low: "I'm energetic like magma!", high: "I'm more like an ocean" },
+    'sociable': { low: "I'm like a desert", high: "I'm more like a forest" },
     'persistent': { low: "I orbit around many things!", high: "I like to keep my ring together" },
     'curious': { low: "I deal with my own craters", high: "I like to discover new comets" },
     'relaxed': { low: "I have some storms inside me", high: "I have a clear sky" },
@@ -26,16 +26,16 @@ type GlowColors = {
 };
 
 const glowColorMap: Record<string, GlowColors> = {
-    'empathy': { low: '#D9851E', high: '#3B82F6' },
-    'sociable': { low: '#22C55E', high: '#EF4444' },
+    'empathy': { low: '#EF4444', high: '#3B82F6' },
+    'sociable': { low: '#D9851E', high: '#22C55E' },
     'persistent': { low: '#C084FC', high: '#D9851E' },
     'curious': { low: '#94A3B8', high: '#EAB308' },
     'relaxed': { low: '#94A3B8', high: '#FFFFFF' },
 };
 
 const tintColorMap: Record<string, GlowColors> = {
-    'empathy': { low: '#D9851E', high: '#3B82F6' },
-    'sociable': { low: '#40E0D0', high: '#EF4444' }, // Turquoise to Red
+    'empathy': { low: '#EF4444', high: '#3B82F6' },
+    'sociable': { low: '#D9851E', high: '#22C55E' },
     'persistent': { low: '#C084FC', high: '#D9851E' },
     'curious': { low: '#94A3B8', high: '#EAB308' },
     'relaxed': { low: '#94A3B8', high: '#FFFFFF' },

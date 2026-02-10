@@ -108,7 +108,7 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
         uHasDesertMap: { value: false },
         uHasOceanMap: { value: false },
         uDesertColor: { value: new Color(0.4, 0.25, 0.15) },
-        uOceanColor: { value: new Color(0.0, 0.9, 1.0) },
+        uOceanColor: { value: new Color(0.01, 0.06, 0.22) },
         uIndices: { value: new Int32Array(8).fill(-1) },
     });
 
@@ -220,21 +220,25 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     // --- CALCULATE PER-VERTEX MASKS ---
     float s1 = uSliders[0];
     float s2 = uSliders[1];
-    float intenDesert = (s1 < 0.5) ? (0.5 - s1) * 2.0 : 0.0;
+    float intenVolcano = (s1 < 0.5) ? (0.5 - s1) * 2.0 : 0.0;
     float intenOcean = (s1 > 0.5) ? (s1 - 0.5) * 2.0 : 0.0;
-    float intenVolcano = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
+    float intenDesert = (s2 < 0.5) ? (0.5 - s2) * 2.0 : 0.0;
+    float intenForest = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
     
-    vec3 p1 = vec3(0.0, 1.0, 0.0);
-    vec3 p2 = vec3(0.8, -0.5, 0.3);
-    float aD = getGrowthAlpha(vOriginalPos, p1, intenDesert);
-    float aO = getGrowthAlpha(vOriginalPos, p1, intenOcean);
+    vec3 p1 = vec3(0.0, 1.0, 0.0); // Q1 Top (Ocean/Desert Area)
+    vec3 p2 = vec3(0.8, -0.5, 0.3); // Q2 Right (Volcano Area)
+    vec3 p3 = vec3(-0.8, -0.5, 0.3); // Q2 Left (Forest Area)
     float aV = getGrowthAlpha(vOriginalPos, p2, intenVolcano);
+    float aO = getGrowthAlpha(vOriginalPos, p2, intenOcean);
+    float aD = getGrowthAlpha(vOriginalPos, p3, intenDesert);
+    float aF = getGrowthAlpha(vOriginalPos, p3, intenForest);
 
     // --- REPLACEMENT LOGIC ---
-    // Volcano replaces Q1 in its unmasked area
-    float maskD = aD * (1.0 - aV);
-    float maskO = aO * (1.0 - aV);
-    float maskV = aV;
+    // S2 (Desert/Forest) overrides S1 (Volcano/Ocean)
+    float maskD = aD * (1.0 - aF);
+    float maskO = aO * (1.0 - aV) * (1.0 - aD) * (1.0 - aF);
+    float maskV = aV * (1.0 - aO) * (1.0 - aD) * (1.0 - aF);
+    // Forest (maskF) doesn't have a morph target, it just suppresses others via (1.0 - aF).
 
     #include <morphtarget_vertex>
 
@@ -316,35 +320,21 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 vec3 mixedDiffuse = diffuseColor.rgb;
                 float s1 = uSliders[0];
                 float s2 = uSliders[1];
-                float intenDesert = (s1 < 0.5) ? (0.5 - s1) * 2.0 : 0.0;
+                float intenVolcano = (s1 < 0.5) ? (0.5 - s1) * 2.0 : 0.0;
                 float intenOcean = (s1 > 0.5) ? (s1 - 0.5) * 2.0 : 0.0;
-                float intenVolcano = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
+                float intenDesert = (s2 < 0.5) ? (0.5 - s2) * 2.0 : 0.0;
+                float intenForest = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
                 
                 vec3 p1 = vec3(0.0, 1.0, 0.0);
                 vec3 p2 = vec3(0.8, -0.5, 0.3);
-                float alphaDesert = getGrowthAlpha(vOriginalPos, p1, intenDesert);
-                float alphaOcean = getGrowthAlpha(vOriginalPos, p1, intenOcean);
+                vec3 p3 = vec3(-0.8, -0.5, 0.3);
                 float alphaVolcan = getGrowthAlpha(vOriginalPos, p2, intenVolcano);
+                float alphaOcean = getGrowthAlpha(vOriginalPos, p2, intenOcean);
+                float alphaDesert = getGrowthAlpha(vOriginalPos, p3, intenDesert);
+                float alphaForest = getGrowthAlpha(vOriginalPos, p3, intenForest);
 
-    if (alphaDesert > 0.001) {
-                    vec3 dBase = uDesertColor;
-        if (uHasDesertMap) dBase *= texture2D(uDesertMap, vCustomUv).rgb;
-                    
-                    float sandGrains = snoise(vOriginalPos * 250.0) * 0.04;
-                    float ripples = snoise(vOriginalPos * 15.0) * 0.03;
-        dBase += sandGrains + ripples;
-        mixedDiffuse = mix(mixedDiffuse, dBase, alphaDesert);
-    }
-
-    if (alphaOcean > 0.001) {
-                    vec3 oBase = uOceanColor;
-        if (uHasOceanMap) oBase *= texture2D(uOceanMap, vCustomUv).rgb;
-        mixedDiffuse = mix(mixedDiffuse, oBase, alphaOcean);
-    }
-
-                // --- Q2: VOLCANO OVERRIDE ---
+                // --- Q1: VOLCANO ---
                 if (alphaVolcan > 0.05) {
-                    // Magma Logic (Rock + Rivers)
                     float rockNoise = snoise(vOriginalPos * 10.0 + vec3(10.0)); 
                     vec3 rockDark = vec3(0.03, 0.03, 0.03);
                     vec3 rockBrown = vec3(0.08, 0.06, 0.04);
@@ -363,6 +353,54 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                     mixedDiffuse = mix(mixedDiffuse, volcanoBase, alphaVolcan);
                 }
 
+                // --- Q1: OCEAN ---
+                if (alphaOcean > 0.001) {
+                    vec3 oBase = uOceanColor;
+                    if (uHasOceanMap) oBase *= texture2D(uOceanMap, vCustomUv).rgb;
+                    
+                    // MULTI-TONE COLOR MIXING
+                    vec3 oceanCyan = vec3(0.01, 0.42, 0.55);
+                    vec3 oceanTurquoise = vec3(0.02, 0.65, 0.58);
+                    float colorMixNoise = snoise(vOriginalPos * 0.8 + 12.3) * 0.5 + 0.5;
+                    float colorMixNoise2 = snoise(vOriginalPos * 0.4 - 5.0 + uTime * 0.02) * 0.5 + 0.5;
+                    oBase = mix(oBase, oceanCyan, colorMixNoise * 0.6);
+                    oBase = mix(oBase, oceanTurquoise, colorMixNoise2 * 0.3);
+
+                    // --- WATER WAVE PATTERN (Refined: Magma style) ---
+                    float waveNoise = snoise(vOriginalPos * 0.25 + vec3(0.0, uTime * 0.12, 0.0));
+                    float waveRidges = 1.0 - abs(waveNoise);
+                    float waveLines = smoothstep(0.88, 0.99, waveRidges);
+                    
+                    vec3 foamColor = vec3(0.95, 1.0, 1.0); 
+                    oBase = mix(oBase, foamColor, waveLines * 0.6);
+                    
+                    mixedDiffuse = mix(mixedDiffuse, oBase, alphaOcean);
+                }
+
+                // --- Q2: DESERT ---
+                if (alphaDesert > 0.001) {
+                    vec3 dBase = uDesertColor;
+                    if (uHasDesertMap) dBase *= texture2D(uDesertMap, vCustomUv).rgb;
+                    
+                    float sandGrains = snoise(vOriginalPos * 250.0) * 0.04;
+                    float ripples = snoise(vOriginalPos * 15.0) * 0.03;
+                    dBase += sandGrains + ripples;
+                    mixedDiffuse = mix(mixedDiffuse, dBase, alphaDesert);
+                }
+
+                // --- Q2: FOREST ---
+                if (alphaForest > 0.001) {
+                    float fNoise = snoise(vOriginalPos * 12.0) * 0.5 + 0.5;
+                    vec3 colorDark = vec3(0.05, 0.15, 0.05);
+                    vec3 colorMid = vec3(0.1, 0.25, 0.1);
+                    vec3 forestBase = mix(colorDark, colorMid, fNoise);
+                    
+                    float detail = snoise(vOriginalPos * 60.0) * 0.05;
+                    forestBase += detail;
+                    
+                    mixedDiffuse = mix(mixedDiffuse, forestBase, alphaForest);
+                }
+
     diffuseColor.rgb = mixedDiffuse;
     `;
             shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', colorMixLogic);
@@ -371,15 +409,22 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     #include <metalnessmap_fragment>
                 float s1_m = uSliders[0];
                 float s2_m = uSliders[1];
+                float intenVolcano_m = (s1_m < 0.5) ? (0.5 - s1_m) * 2.0 : 0.0;
                 float intenOcean_m = (s1_m > 0.5) ? (s1_m - 0.5) * 2.0 : 0.0;
-                float intenVolcano_m = (s2_m > 0.5) ? (s2_m - 0.5) * 2.0 : 0.0;
+                float intenDesert_m = (s2_m < 0.5) ? (0.5 - s2_m) * 2.0 : 0.0;
+                float intenForest_m = (s2_m > 0.5) ? (s2_m - 0.5) * 2.0 : 0.0;
                 vec3 p1_m = vec3(0.0, 1.0, 0.0);
                 vec3 p2_m = vec3(0.8, -0.5, 0.3);
-                float alphaOcean_m = getGrowthAlpha(vOriginalPos, p1_m, intenOcean_m);
+                vec3 p3_m = vec3(-0.8, -0.5, 0.3);
                 float alphaVolcan_m = getGrowthAlpha(vOriginalPos, p2_m, intenVolcano_m);
+                float alphaOcean_m = getGrowthAlpha(vOriginalPos, p2_m, intenOcean_m);
+                float alphaDesert_m = getGrowthAlpha(vOriginalPos, p3_m, intenDesert_m);
+                float alphaForest_m = getGrowthAlpha(vOriginalPos, p3_m, intenForest_m);
                 
-                if (alphaOcean_m > 0.01) metalnessFactor = mix(metalnessFactor, 0.3, alphaOcean_m);
                 if (alphaVolcan_m > 0.01) metalnessFactor = mix(metalnessFactor, 0.0, alphaVolcan_m);
+                if (alphaOcean_m > 0.01) metalnessFactor = mix(metalnessFactor, 0.1, alphaOcean_m);
+                if (alphaDesert_m > 0.01) metalnessFactor = mix(metalnessFactor, 0.0, alphaDesert_m);
+                if (alphaForest_m > 0.01) metalnessFactor = mix(metalnessFactor, 0.0, alphaForest_m);
     `;
             shader.fragmentShader = shader.fragmentShader.replace('#include <metalnessmap_fragment>', metalnessLogic);
 
@@ -387,18 +432,27 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     #include <roughnessmap_fragment>
                 float s1_r = uSliders[0];
                 float s2_r = uSliders[1];
-                float intenDesert_r = (s1_r < 0.5) ? (0.5 - s1_r) * 2.0 : 0.0;
+                float intenVolcano_r = (s1_r < 0.5) ? (0.5 - s1_r) * 2.0 : 0.0;
                 float intenOcean_r = (s1_r > 0.5) ? (s1_r - 0.5) * 2.0 : 0.0;
-                float intenVolcano_r = (s2_r > 0.5) ? (s2_r - 0.5) * 2.0 : 0.0;
+                float intenDesert_r = (s2_r < 0.5) ? (0.5 - s2_r) * 2.0 : 0.0;
+                float intenForest_r = (s2_r > 0.5) ? (s2_r - 0.5) * 2.0 : 0.0;
                 vec3 p1_r = vec3(0.0, 1.0, 0.0);
                 vec3 p2_r = vec3(0.8, -0.5, 0.3);
-                float alphaDesert_r = getGrowthAlpha(vOriginalPos, p1_r, intenDesert_r);
-                float alphaOcean_r = getGrowthAlpha(vOriginalPos, p1_r, intenOcean_r);
+                vec3 p3_r = vec3(-0.8, -0.5, 0.3);
                 float alphaVolcan_r = getGrowthAlpha(vOriginalPos, p2_r, intenVolcano_r);
+                float alphaOcean_r = getGrowthAlpha(vOriginalPos, p2_r, intenOcean_r);
+                float alphaDesert_r = getGrowthAlpha(vOriginalPos, p3_r, intenDesert_r);
+                float alphaForest_r = getGrowthAlpha(vOriginalPos, p3_r, intenForest_r);
                 
-                if (alphaDesert_r > 0.01) roughnessFactor = mix(roughnessFactor, 1.0, alphaDesert_r);
-                if (alphaOcean_r > 0.01) roughnessFactor = mix(roughnessFactor, 0.02, alphaOcean_r);
                 if (alphaVolcan_r > 0.01) roughnessFactor = mix(roughnessFactor, 1.0, alphaVolcan_r);
+                if (alphaOcean_r > 0.01) {
+                    // Streaky reflections via noise-distorted roughness
+                    float rNoise = snoise(vOriginalPos * 4.0 + vec3(uTime * 0.05, 0.0, 0.0)) * 0.5 + 0.5;
+                    float finalR = mix(0.01, 0.12, rNoise);
+                    roughnessFactor = mix(roughnessFactor, finalR, alphaOcean_r);
+                }
+                if (alphaDesert_r > 0.01) roughnessFactor = mix(roughnessFactor, 1.0, alphaDesert_r);
+                if (alphaForest_r > 0.01) roughnessFactor = mix(roughnessFactor, 0.8, alphaForest_r);
     `;
             shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', roughnessLogic);
 
@@ -435,9 +489,10 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
         const s1_frame = values[0] / 100;
         const s2_frame = values[1] / 100;
 
-        const activeDesert = (s1_frame < 0.5) ? 1.0 : 0.0;
+        const activeVolcan = (s1_frame < 0.5) ? 1.0 : 0.0;
         const activeOcean = (s1_frame > 0.5) ? 1.0 : 0.0;
-        const activeVolcan = (s2_frame > 0.5) ? 1.0 : 0.0;
+        const activeDesert = (s2_frame < 0.5) ? 1.0 : 0.0;
+        const activeForest = (s2_frame > 0.5) ? 1.0 : 0.0;
 
         // Unified Mesh control
         baseMesh.traverse((child: any) => {
@@ -473,12 +528,13 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
 
     return (
         <group>
-            <Environment files="/env_map.hdr" />
-            <directionalLight position={[10, 10, 10]} intensity={1.5} castShadow />
-            <directionalLight position={[0, -10, 0]} intensity={blueLightInt} color="#0088ff" />
+            {/* Environment with night preset for better dark blue contrast */}
+            <Environment preset="night" />
+            <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
+            <directionalLight position={[0, -10, 0]} intensity={blueLightInt * 1.5} color="#0044ff" />
             <directionalLight position={[-10, 5, 10]} intensity={warmLightInt} color={(values[0] < 50) ? "#ffaa00" : "#ffffff"} />
-            <directionalLight position={[-10, -5, -10]} intensity={0.5} color="#ffd4a3" />
-            <ambientLight intensity={0.15} />
+            <directionalLight position={[-10, -5, -10]} intensity={0.3} color="#000033" />
+            <ambientLight intensity={0.1} />
 
             <ambientLight intensity={0.15} />
 
