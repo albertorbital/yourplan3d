@@ -97,8 +97,13 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     // const forest = forestGLTF.scene; // Unused for now
 
     // Create clones for overlays
-    // We only need Base and Volcan now.
     const materialRef = useRef<MeshStandardMaterial>(null);
+    const forestMaterialRef = useRef<MeshStandardMaterial>(null);
+
+    const forestMesh = useMemo(() => {
+        const f = forestGLTF.scene.clone();
+        return f;
+    }, [forestGLTF]);
 
     const customUniforms = useRef({
         uSliders: { value: [0.5, 0.5, 0.5, 0.5, 0.5] },
@@ -225,13 +230,12 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     float intenDesert = (s2 < 0.5) ? (0.5 - s2) * 2.0 : 0.0;
     float intenForest = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
     
-    vec3 p1 = vec3(0.0, 1.0, 0.0); // Q1 Top (Ocean/Desert Area)
-    vec3 p2 = vec3(0.8, -0.5, 0.3); // Q2 Right (Volcano Area)
-    vec3 p3 = vec3(-0.8, -0.5, 0.3); // Q2 Left (Forest Area)
-    float aV = getGrowthAlpha(vOriginalPos, p2, intenVolcano);
-    float aO = getGrowthAlpha(vOriginalPos, p2, intenOcean);
-    float aD = getGrowthAlpha(vOriginalPos, p3, intenDesert);
-    float aF = getGrowthAlpha(vOriginalPos, p3, intenForest);
+    vec3 p1 = vec3(0.0, 1.0, 0.0); // Q1 Top (Volcano / Ocean)
+    vec3 p2 = vec3(0.8, -0.5, 0.3); // Q2 Side (Desert / Forest)
+    float aV = getGrowthAlpha(vOriginalPos, p1, intenVolcano);
+    float aO = getGrowthAlpha(vOriginalPos, p1, intenOcean);
+    float aD = getGrowthAlpha(vOriginalPos, p2, intenDesert);
+    float aF = getGrowthAlpha(vOriginalPos, p2, intenForest);
 
     // --- REPLACEMENT LOGIC ---
     // S2 (Desert/Forest) overrides S1 (Volcano/Ocean)
@@ -325,13 +329,12 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 float intenDesert = (s2 < 0.5) ? (0.5 - s2) * 2.0 : 0.0;
                 float intenForest = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
                 
-                vec3 p1 = vec3(0.0, 1.0, 0.0);
-                vec3 p2 = vec3(0.8, -0.5, 0.3);
-                vec3 p3 = vec3(-0.8, -0.5, 0.3);
-                float alphaVolcan = getGrowthAlpha(vOriginalPos, p2, intenVolcano);
-                float alphaOcean = getGrowthAlpha(vOriginalPos, p2, intenOcean);
-                float alphaDesert = getGrowthAlpha(vOriginalPos, p3, intenDesert);
-                float alphaForest = getGrowthAlpha(vOriginalPos, p3, intenForest);
+                vec3 seedQ1 = vec3(0.0, 1.0, 0.0);
+                vec3 seedQ2 = vec3(0.8, -0.5, 0.3);
+                float alphaVolcan = getGrowthAlpha(vOriginalPos, seedQ1, intenVolcano);
+                float alphaOcean = getGrowthAlpha(vOriginalPos, seedQ1, intenOcean);
+                float alphaDesert = getGrowthAlpha(vOriginalPos, seedQ2, intenDesert);
+                float alphaForest = getGrowthAlpha(vOriginalPos, seedQ2, intenForest);
 
                 // --- Q1: VOLCANO ---
                 if (alphaVolcan > 0.05) {
@@ -413,13 +416,12 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 float intenOcean_m = (s1_m > 0.5) ? (s1_m - 0.5) * 2.0 : 0.0;
                 float intenDesert_m = (s2_m < 0.5) ? (0.5 - s2_m) * 2.0 : 0.0;
                 float intenForest_m = (s2_m > 0.5) ? (s2_m - 0.5) * 2.0 : 0.0;
-                vec3 p1_m = vec3(0.0, 1.0, 0.0);
-                vec3 p2_m = vec3(0.8, -0.5, 0.3);
-                vec3 p3_m = vec3(-0.8, -0.5, 0.3);
-                float alphaVolcan_m = getGrowthAlpha(vOriginalPos, p2_m, intenVolcano_m);
-                float alphaOcean_m = getGrowthAlpha(vOriginalPos, p2_m, intenOcean_m);
-                float alphaDesert_m = getGrowthAlpha(vOriginalPos, p3_m, intenDesert_m);
-                float alphaForest_m = getGrowthAlpha(vOriginalPos, p3_m, intenForest_m);
+                vec3 seedQ1_m = vec3(0.0, 1.0, 0.0);
+                vec3 seedQ2_m = vec3(0.8, -0.5, 0.3);
+                float alphaVolcan_m = getGrowthAlpha(vOriginalPos, seedQ1_m, intenVolcano_m);
+                float alphaOcean_m = getGrowthAlpha(vOriginalPos, seedQ1_m, intenOcean_m);
+                float alphaDesert_m = getGrowthAlpha(vOriginalPos, seedQ2_m, intenDesert_m);
+                float alphaForest_m = getGrowthAlpha(vOriginalPos, seedQ2_m, intenForest_m);
                 
                 if (alphaVolcan_m > 0.01) metalnessFactor = mix(metalnessFactor, 0.0, alphaVolcan_m);
                 if (alphaOcean_m > 0.01) metalnessFactor = mix(metalnessFactor, 0.1, alphaOcean_m);
@@ -436,13 +438,12 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 float intenOcean_r = (s1_r > 0.5) ? (s1_r - 0.5) * 2.0 : 0.0;
                 float intenDesert_r = (s2_r < 0.5) ? (0.5 - s2_r) * 2.0 : 0.0;
                 float intenForest_r = (s2_r > 0.5) ? (s2_r - 0.5) * 2.0 : 0.0;
-                vec3 p1_r = vec3(0.0, 1.0, 0.0);
-                vec3 p2_r = vec3(0.8, -0.5, 0.3);
-                vec3 p3_r = vec3(-0.8, -0.5, 0.3);
-                float alphaVolcan_r = getGrowthAlpha(vOriginalPos, p2_r, intenVolcano_r);
-                float alphaOcean_r = getGrowthAlpha(vOriginalPos, p2_r, intenOcean_r);
-                float alphaDesert_r = getGrowthAlpha(vOriginalPos, p3_r, intenDesert_r);
-                float alphaForest_r = getGrowthAlpha(vOriginalPos, p3_r, intenForest_r);
+                vec3 seedQ1_r = vec3(0.0, 1.0, 0.0);
+                vec3 seedQ2_r = vec3(0.8, -0.5, 0.3);
+                float alphaVolcan_r = getGrowthAlpha(vOriginalPos, seedQ1_r, intenVolcano_r);
+                float alphaOcean_r = getGrowthAlpha(vOriginalPos, seedQ1_r, intenOcean_r);
+                float alphaDesert_r = getGrowthAlpha(vOriginalPos, seedQ2_r, intenDesert_r);
+                float alphaForest_r = getGrowthAlpha(vOriginalPos, seedQ2_r, intenForest_r);
                 
                 if (alphaVolcan_r > 0.01) roughnessFactor = mix(roughnessFactor, 1.0, alphaVolcan_r);
                 if (alphaOcean_r > 0.01) {
@@ -474,16 +475,121 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
 
         // @ts-ignore
         materialRef.current = mat;
-    }, [baseMesh, desertMaps, oceanMaps]);
+
+        // --- FOREST MATERIAL ---
+        const fMat = new MeshStandardMaterial({
+            color: new Color(1, 1, 1), // Multi-tone applied in shader
+            roughness: 0.8,
+            metalness: 0.0,
+            side: THREE.FrontSide,
+        });
+
+        fMat.onBeforeCompile = (shader) => {
+            shader.uniforms.uSliders = customUniforms.current.uSliders;
+            shader.uniforms.uTime = customUniforms.current.uTime;
+
+            shader.vertexShader = `
+                uniform float uSliders[5];
+                varying vec3 vOriginalPos;
+                varying vec3 vWorldPos;
+                ${noisePars}
+                
+                float getGrowthAlpha(vec3 pos, vec3 seedPoint, float intensity) {
+                    vec3 posNorm = normalize(pos);
+                    if (intensity <= 0.0) return 0.0;
+                    if (intensity >= 1.0) return 1.0;
+                    float align = dot(posNorm, normalize(seedPoint));
+                    float grad = align * 0.5 + 0.5; 
+                    float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
+                    float growthMap = mix(grad, n, 0.15); 
+                    float threshold = 1.02 - (intensity * 1.05);
+                    return smoothstep(threshold, threshold + 0.02, growthMap);
+                }
+            ` + shader.vertexShader;
+
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                `
+                #include <begin_vertex>
+                vOriginalPos = position;
+                vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                `
+            );
+
+            shader.fragmentShader = `
+                uniform float uSliders[5];
+                uniform float uTime;
+                varying vec3 vOriginalPos;
+                varying vec3 vWorldPos;
+                ${noisePars}
+                
+                float getGrowthAlpha(vec3 pos, vec3 seedPoint, float intensity) {
+                    vec3 posNorm = normalize(pos);
+                    if (intensity <= 0.0) return 0.0;
+                    if (intensity >= 1.0) return 1.0;
+                    float align = dot(posNorm, normalize(seedPoint));
+                    float grad = align * 0.5 + 0.5; 
+                    float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
+                    float growthMap = mix(grad, n, 0.15); 
+                    float threshold = 1.02 - (intensity * 1.05);
+                    return smoothstep(threshold, threshold + 0.02, growthMap);
+                }
+            ` + shader.fragmentShader;
+
+            const forestColorLogic = `
+                float s2_f = uSliders[1];
+                float intenForest_f = (s2_f > 0.5) ? (s2_f - 0.5) * 2.0 : 0.0;
+                vec3 seedQ2_f = vec3(0.8, -0.5, 0.3);  // Q2 Side (Desert / Forest)
+                float maskF = getGrowthAlpha(vOriginalPos, seedQ2_f, intenForest_f);
+                
+                if (maskF < 0.01) discard;
+
+                float fNoise = snoise(vOriginalPos * 25.0 + vec3(uTime * 0.05)) * 0.5 + 0.5;
+                vec3 forestGreen = vec3(0.02, 0.18, 0.05);
+                vec3 forestTeal = vec3(0.01, 0.25, 0.22);
+                vec3 forestLightGreen = vec3(0.12, 0.35, 0.15);
+                
+                vec3 mixedForest = mix(forestGreen, forestTeal, fNoise);
+                mixedForest = mix(mixedForest, forestLightGreen, snoise(vOriginalPos * 10.0) * 0.3);
+                
+                diffuseColor.rgb = mixedForest;
+            `;
+            shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', forestColorLogic);
+
+            // @ts-ignore
+            fMat.userData.shader = shader; // Shared logic for update
+        };
+
+        const setupForestMesh = (obj: any) => {
+            obj.traverse((child: any) => {
+                if (child.isMesh) {
+                    child.material = fMat;
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // Ensure forest mesh is slightly offset or handled to prevent Z-fighting if needed, 
+                    // though glb should be above surface.
+                }
+            });
+        };
+        setupForestMesh(forestMesh);
+
+        // @ts-ignore
+        forestMaterialRef.current = fMat;
+    }, [baseMesh, forestMesh, desertMaps, oceanMaps]);
 
     useFrame((state) => {
         const time = state.clock.getElapsedTime();
 
         // Update Base Uniforms
-        if (materialRef.current && materialRef.current.userData.shader) {
+        if (materialRef.current && materialRef.current?.userData?.shader) {
             const sh = materialRef.current.userData.shader;
-            sh.uniforms.uSliders.value = values.map(v => v / 100);
-            sh.uniforms.uTime.value = time;
+            if (sh.uniforms.uSliders) sh.uniforms.uSliders.value = values.map(v => v / 100);
+            if (sh.uniforms.uTime) sh.uniforms.uTime.value = time;
+        }
+        if (forestMaterialRef.current && forestMaterialRef.current?.userData?.shader) {
+            const sh = forestMaterialRef.current.userData.shader;
+            if (sh.uniforms.uSliders) sh.uniforms.uSliders.value = values.map(v => v / 100);
+            if (sh.uniforms.uTime) sh.uniforms.uTime.value = time;
         }
 
         const s1_frame = values[0] / 100;
@@ -516,8 +622,9 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 }
 
                 // Update Indices for the shader
-                if (materialRef.current && materialRef.current.userData.shader) {
-                    materialRef.current.userData.shader.uniforms.uIndices.value = indices;
+                const sh = materialRef.current?.userData?.shader;
+                if (sh && sh.uniforms.uIndices) {
+                    sh.uniforms.uIndices.value = indices;
                 }
             }
         });
@@ -539,8 +646,7 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
             <ambientLight intensity={0.15} />
 
             <primitive object={baseMesh} material={materialRef.current} scale={0.004} />
-            {/* FOREST DISABLED FOR NOW */}
-            {/* <primitive object={forestMesh} material={forestMaterialRef.current} scale={0.004} /> */}
+            <primitive object={forestMesh} material={forestMaterialRef.current} scale={0.038} />
         </group>
     );
 };
