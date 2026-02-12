@@ -7,14 +7,7 @@ import { Mesh, Color, MeshStandardMaterial, Group } from 'three';
 // Preload to avoid waterfalls
 useGLTF.preload('/models/forest.glb');
 
-// ... (Shader Helpers remain) ...
-
-interface DisplacementSphereProps {
-    values: number[];
-}
-
 // --- SHADER HELPERS ---
-
 const noisePars = `
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -84,6 +77,368 @@ float getGrowthAlpha(vec3 pos, vec3 seedPoint, float intensity) {
     return smoothstep(threshold, threshold + 0.03, growthMap);
 }
 `;
+
+// Preload to avoid waterfalls
+useGLTF.preload('/models/forest.glb');
+
+interface DisplacementSphereProps {
+    values: number[];
+}
+
+// --- BUTTERFLY PARTICLES ---
+// --- BUTTERFLY/FIREFLY SHADERS ---
+const butterflyVertexShader = `
+    uniform float uTime;
+    uniform float uIntensity;
+    uniform vec3 uSeedPoint;
+    attribute float pSize;
+    attribute vec3 pColor;
+    attribute vec3 pSeed;
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    ${noisePars}
+
+    float getGrowth(vec3 pos, vec3 seedPoint, float intensity) {
+        if (intensity < 0.005) return 0.0;
+        
+        // Use normalized position for growth mapping (sphere-independent)
+        vec3 posNorm = normalize(pos);
+        float align = dot(posNorm, normalize(seedPoint));
+        
+        // Gradient and noise for reveal
+        float grad = align * 0.5 + 0.5; 
+        float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
+        float growthMap = mix(grad, n, 0.2); 
+        
+        // Sharper reveal threshold
+        float threshold = 1.05 - (intensity * 1.1);
+        return smoothstep(threshold, threshold + 0.02, growthMap);
+    }
+
+    void main() {
+        vColor = pColor;
+        
+        float growth = getGrowth(position, uSeedPoint, uIntensity);
+        vAlpha = growth;
+
+        // DRASTIC MOVEMENT (Scaled for radius 1.25)
+        vec3 pos = position;
+        float t = uTime * (1.5 + pSeed.z * 1.0);
+        pos.x += sin(t + pSeed.x * 10.0) * 1.5 * growth;
+        pos.y += cos(t * 0.8 + pSeed.y * 10.0) * 1.5 * growth;
+        pos.z += sin(t * 1.3 + pSeed.x * 10.0) * 1.5 * growth;
+
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        
+        // Balanced pixel size for the distance
+        gl_PointSize = pSize * (60.0 / -mvPosition.z) * growth;
+        gl_Position = projectionMatrix * mvPosition;
+    }
+`;
+
+const butterflyFragmentShader = `
+    varying vec3 vColor;
+    varying float vAlpha;
+    
+    void main() {
+        // Round particle shape with soft edges
+        float d = distance(gl_PointCoord, vec2(0.5));
+        if (d > 0.5) discard;
+        
+        float glow = pow(1.0 - d * 2.0, 2.0);
+        float core = pow(1.0 - d * 2.0, 8.0);
+        
+        vec3 finalColor = mix(vColor, vec3(1.0), core * 0.5);
+        gl_FragColor = vec4(finalColor, (glow * 0.6 + core * 0.4) * vAlpha * 0.9);
+    }
+`;
+
+// --- WIND PARTICLES (LINES) ---
+const windVertexShader = `
+    uniform float uTime;
+    uniform float uIntensity;
+    uniform vec3 uSeedPoint;
+    attribute vec3 pSeed;
+    attribute float vRatio; // 0 to 1 along streak
+    attribute float vSide;  // -1 or 1 for width
+    varying float vAlpha;
+
+    ${noisePars}
+
+    float getGrowth(vec3 pos, vec3 seedPoint, float intensity) {
+        if (intensity < 0.005) return 0.0;
+        vec3 posNorm = normalize(pos);
+        float align = dot(posNorm, normalize(seedPoint));
+        float grad = align * 0.5 + 0.5; 
+        float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
+        float growthMap = mix(grad, n, 0.2); 
+        float threshold = 1.05 - (intensity * 1.15);
+        return smoothstep(threshold, threshold + 0.1, growthMap);
+    }
+
+    // Rotation helper
+    vec3 rotateY(vec3 p, float a) {
+        float c = cos(a), s = sin(a);
+        return vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c);
+    }
+
+    void main() {
+        float growth = getGrowth(position, uSeedPoint, uIntensity);
+        vAlpha = growth * 0.4; // Lower opacity as requested
+
+        // 1. Initial Position (Seed)
+        vec3 pos = normalize(position); 
+        float radius = length(position); // ~2.25
+        
+        // 2. Horizontal Rotation (Tangent sweep)
+        float t = uTime * (0.6 + pSeed.z * 0.4);
+        float sweepAngle = t + pSeed.x;
+        // Apply individual longitudinal shift along the streak
+        sweepAngle -= vRatio * 0.45 * growth; 
+        
+        pos = rotateY(pos, sweepAngle);
+        
+        // 3. Hugging the Planet (Constant Radius)
+        // We force it back to a sphere after rotation
+        pos = normalize(pos) * (radius + sin(t*2.0 + pSeed.y)*0.05);
+
+        // 4. Thickness Expansion
+        // Calculate tangent/bitangent for surface expansion
+        vec3 normal = normalize(pos);
+        vec3 tangent = normalize(cross(normal, vec3(0.0, 1.0, 0.0)));
+        
+        float width = 0.15 * growth; // "Much thicker"
+        pos += tangent * vSide * width;
+
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+    }
+`;
+
+const windFragmentShader = `
+    varying float vAlpha;
+    void main() {
+        gl_FragColor = vec4(1.0, 1.0, 1.0, vAlpha);
+    }
+`;
+
+const ButterflyParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
+    const count = 400; // Slightly reduced from 600 to avoid clutter
+    const meshRef = useRef<THREE.Points>(null);
+    const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+    const [positions, colors, sizes, seeds] = useMemo(() => {
+        const pos = new Float32Array(count * 3);
+        const col = new Float32Array(count * 3);
+        const siz = new Float32Array(count);
+        const sds = new Float32Array(count * 3);
+
+        const possibleColors = [
+            new THREE.Color('#ff00ff'), // Vibrant Pink
+            new THREE.Color('#00ffff'), // Bright Cyan
+            new THREE.Color('#ffff00'), // Pure Yellow
+            new THREE.Color('#ffaa00'), // Bright Orange
+            new THREE.Color('#44ff88'), // Minty Green
+            new THREE.Color('#ffffff'), // Pure White
+            new THREE.Color('#ff4444'), // Fire Red
+            new THREE.Color('#8844ff'), // Electric Purple
+        ];
+
+        // Spawn around the forest seed point in WORLD space coordinates (normalized planet)
+        const seedPoint = new THREE.Vector3(0.8, -0.5, 0.3).normalize();
+
+        for (let i = 0; i < count; i++) {
+            // WIDER RANDOM SPREAD to ensure they don't clump at the center
+            const randomOffset = new THREE.Vector3(
+                (Math.random() - 0.5) * 4.0,
+                (Math.random() - 0.5) * 4.0,
+                (Math.random() - 0.5) * 4.0
+            );
+            const dir = seedPoint.clone().add(randomOffset).normalize();
+
+            // WORLD RADIUS: 1.2 to 1.6 ensures they are clearly outside base (1.0) and foliage
+            const radius = 2.25 + Math.random() * 0.3;
+
+            pos[i * 3] = dir.x * radius;
+            pos[i * 3 + 1] = dir.y * radius;
+            pos[i * 3 + 2] = dir.z * radius;
+
+            const c = possibleColors[Math.floor(Math.random() * possibleColors.length)];
+            col[i * 3] = c.r;
+            col[i * 3 + 1] = c.g;
+            col[i * 3 + 2] = c.b;
+
+            // Twinkling points
+            siz[i] = 1.0 + Math.random() * 5.0;
+            sds[i * 3] = Math.random() * 1000.0;
+            sds[i * 3 + 1] = Math.random() * 1000.0;
+            sds[i * 3 + 2] = Math.random() * 1.0;
+        }
+        return [pos, col, siz, sds];
+    }, []);
+
+    const uniforms = useMemo(() => ({
+        uTime: { value: 0 },
+        uIntensity: { value: 0 },
+        uSeedPoint: { value: new THREE.Vector3(0.8, -0.5, 0.3) }
+    }), []);
+
+    useFrame((state) => {
+        if (materialRef.current) {
+            materialRef.current.uniforms.uTime.value = state.clock.getElapsedTime();
+            materialRef.current.uniforms.uIntensity.value = intensity;
+        }
+    });
+
+    return (
+        <points ref={meshRef} frustumCulled={false}>
+            <bufferGeometry>
+                <bufferAttribute
+                    attach="attributes-position"
+                    args={[positions, 3]}
+                />
+                <bufferAttribute
+                    attach="attributes-pColor"
+                    args={[colors, 3]}
+                />
+                <bufferAttribute
+                    attach="attributes-pSize"
+                    args={[sizes, 1]}
+                />
+                <bufferAttribute
+                    attach="attributes-pSeed"
+                    args={[seeds, 3]}
+                />
+            </bufferGeometry>
+            <shaderMaterial
+                ref={materialRef}
+                key={count} // Force rebuild if count changes
+                uniforms={uniforms}
+                vertexShader={butterflyVertexShader}
+                fragmentShader={butterflyFragmentShader}
+                transparent={true}
+                depthWrite={false}
+                depthTest={true}
+                blending={THREE.AdditiveBlending}
+            />
+        </points>
+    );
+};
+
+const WindParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
+    const streakCount = 60; // Fewer but thicker
+    const segmentsPerStreak = 8; // Smooth curving
+
+    const countPerStreak = (segmentsPerStreak + 1) * 2;
+    const totalCount = streakCount * countPerStreak;
+    const indexCountPerStreak = segmentsPerStreak * 6;
+    const totalIndexCount = streakCount * indexCountPerStreak;
+
+    const meshRef = useRef<THREE.Mesh>(null);
+    const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+    const [positions, seeds, ratios, sides, indices] = useMemo(() => {
+        const pos = new Float32Array(totalCount * 3);
+        const sds = new Float32Array(totalCount * 3);
+        const rats = new Float32Array(totalCount);
+        const sdes = new Float32Array(totalCount);
+        const idxs = new Uint16Array(totalIndexCount);
+
+        const seedPoint = new THREE.Vector3(0.8, -0.5, 0.3).normalize();
+
+        for (let i = 0; i < streakCount; i++) {
+            const randomOffset = new THREE.Vector3(
+                (Math.random() - 0.5) * 5.5,
+                (Math.random() - 0.5) * 5.5,
+                (Math.random() - 0.5) * 5.5
+            );
+            const dir = seedPoint.clone().add(randomOffset).normalize();
+            const radius = 3.25 + Math.random() * 0.7;
+
+            const baseP = dir.multiplyScalar(radius);
+            const sx = Math.random() * 1000.0;
+            const sy = Math.random() * 1000.0;
+            const sz = Math.random() * 1.0;
+
+            const vertexOffset = i * countPerStreak;
+
+            for (let s = 0; s <= segmentsPerStreak; s++) {
+                const r = s / segmentsPerStreak;
+
+                // Left vertex
+                const vL = vertexOffset + s * 2;
+                pos[vL * 3] = baseP.x; pos[vL * 3 + 1] = baseP.y; pos[vL * 3 + 2] = baseP.z;
+                sds[vL * 3] = sx; sds[vL * 3 + 1] = sy; sds[vL * 3 + 2] = sz;
+                rats[vL] = r;
+                sdes[vL] = -1.0;
+
+                // Right vertex
+                const vR = vertexOffset + s * 2 + 1;
+                pos[vR * 3] = baseP.x; pos[vR * 3 + 1] = baseP.y; pos[vR * 3 + 2] = baseP.z;
+                sds[vR * 3] = sx; sds[vR * 3 + 1] = sy; sds[vR * 3 + 2] = sz;
+                rats[vR] = r;
+                sdes[vR] = 1.0;
+
+                if (s < segmentsPerStreak) {
+                    const iOff = i * indexCountPerStreak + s * 6;
+                    const a = vertexOffset + s * 2;
+                    const b = vertexOffset + s * 2 + 1;
+                    const c = vertexOffset + (s + 1) * 2;
+                    const d = vertexOffset + (s + 1) * 2 + 1;
+
+                    idxs[iOff] = a; idxs[iOff + 1] = b; idxs[iOff + 2] = c;
+                    idxs[iOff + 3] = b; idxs[iOff + 4] = d; idxs[iOff + 5] = c;
+                }
+            }
+        }
+        return [pos, sds, rats, sdes, idxs];
+    }, [streakCount]);
+
+    const posAttr = useMemo(() => new THREE.BufferAttribute(positions, 3), [positions]);
+    const sdsAttr = useMemo(() => new THREE.BufferAttribute(seeds, 3), [seeds]);
+    const ratAttr = useMemo(() => new THREE.BufferAttribute(ratios, 1), [ratios]);
+    const sideAttr = useMemo(() => new THREE.BufferAttribute(sides, 1), [sides]);
+    const idxAttr = useMemo(() => new THREE.BufferAttribute(indices, 1), [indices]);
+
+    const uniforms = useMemo(() => ({
+        uTime: { value: 0 },
+        uIntensity: { value: 0 },
+        uSeedPoint: { value: new THREE.Vector3(0.8, -0.5, 0.3) }
+    }), []);
+
+    useFrame((state) => {
+        if (materialRef.current) {
+            materialRef.current.uniforms.uTime.value = state.clock.getElapsedTime();
+            materialRef.current.uniforms.uIntensity.value = intensity;
+        }
+    });
+
+    return (
+        <mesh ref={meshRef} frustumCulled={false}>
+            <bufferGeometry>
+                <primitive object={posAttr} attach="attributes-position" />
+                <primitive object={sdsAttr} attach="attributes-pSeed" />
+                <primitive object={ratAttr} attach="attributes-vRatio" />
+                <primitive object={sideAttr} attach="attributes-vSide" />
+                <primitive object={idxAttr} attach="index" />
+            </bufferGeometry>
+            <shaderMaterial
+                ref={materialRef}
+                uniforms={uniforms}
+                vertexShader={windVertexShader}
+                fragmentShader={windFragmentShader}
+                transparent={true}
+                side={THREE.DoubleSide}
+                depthWrite={false}
+                depthTest={true}
+                blending={THREE.AdditiveBlending}
+            />
+        </mesh>
+    );
+};
+
+// --- STYLIZED SHADERS REMOVED DUPLICATES ---
 
 export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     values
@@ -291,8 +646,8 @@ for (int i = 0; i < 8; i++) {
                 
                 float getGrowthAlpha(vec3 pos, vec3 seedPoint, float intensity) {
                     vec3 posNorm = normalize(pos);
-    if (intensity <= 0.0) return 0.0;
-    if (intensity >= 1.0) return 1.0;
+                    if (intensity <= 0.0) return 0.0;
+                    if (intensity >= 1.0) return 1.0;
                     float align = dot(posNorm, normalize(seedPoint));
 
                     // LINEAR GRADIENT
@@ -389,8 +744,29 @@ if (alphaDesert > 0.001) {
 
 // --- Q2: FOREST ---
 if (alphaForest > 0.001) {
-                    vec3 forestGreen = vec3(0.02, 0.18, 0.05);
-    mixedDiffuse = mix(mixedDiffuse, forestGreen, alphaForest);
+    // Shared palette with leaves
+    vec3 deepForest  = vec3(0.01, 0.12, 0.08);   // Dark shadows
+    vec3 healthyLeaf = vec3(0.05, 0.35, 0.12);   // Mid green
+    vec3 pineBlue    = vec3(0.05, 0.25, 0.30);   // Bluish green
+    vec3 dirtColor   = vec3(0.12, 0.08, 0.05);   // Dark brown for ground gaps
+    
+    // Pattern logic
+    float groundN = snoise(vOriginalPos * 12.0) * 0.5 + 0.5; // Reduced from 25.0
+    float patches = snoise(vOriginalPos * 4.0) * 0.5 + 0.5;  // Reduced from 6.0
+    float mossN = snoise(vOriginalPos * 25.0) * 0.5 + 0.5;   // Reduced from 80.0
+    
+    // Mix the ground colors
+    vec3 baseFloor = mix(deepForest, healthyLeaf, groundN);
+    baseFloor = mix(baseFloor, pineBlue, patches * 0.4);
+    
+    // Add "dirt" or shadowed gaps between mossy patches
+    float dirtMask = smoothstep(0.3, 0.1, groundN * patches);
+    baseFloor = mix(baseFloor, dirtColor, dirtMask * 0.6);
+    
+    // Micro-moss detail
+    baseFloor = mix(baseFloor, baseFloor * 1.2, mossN * 0.2);
+    
+    mixedDiffuse = mix(mixedDiffuse, baseFloor, alphaForest);
 }
 
 diffuseColor.rgb = mixedDiffuse;
@@ -537,36 +913,65 @@ if (maskF_v < 0.001) transformed *= 0.0001; // Scale down hidden leaves to avoid
 
             const forestColorLogic = `
                 float s2_f = uSliders[1];
-
-
                 float intenForest_f = (s2_f > 0.5) ? (s2_f - 0.5) * 2.0 : 0.0;
                 vec3 seedQ2_f = vec3(0.8, -0.5, 0.3); 
                 float maskF = getGrowthAlpha(vOriginalPos, seedQ2_f, intenForest_f);
 
-if (maskF < 0.001) discard; 
+                if (maskF < 0.001) discard; 
 
-                // --- Stylized Leaf Color System ---
-                float baseN = snoise(vOriginalPos * 12.0) * 0.5 + 0.5;
-                float leafFleck = snoise(vOriginalPos * 130.0) * 0.5 + 0.5; 
-                float detailN = snoise(vOriginalPos * 45.0 + vec3(uTime * 0.02)) * 0.5 + 0.5;
+                // --- Stylized Leaf Color System (Enhanced) ---
                 
-                // Boost fleck contrast for "leaf feeling"
-                float fleckBoost = smoothstep(0.4, 0.7, leafFleck);
+                // 1. Per-Tree/Cluster Variation (Mid Frequency)
+                float treeNoise = snoise(vOriginalPos * 12.0) * 0.5 + 0.5; // Reduced from 18.0
                 
-                float leafMix = mix(baseN, detailN, 0.45);
-                leafMix = mix(leafMix, fleckBoost, 0.35); 
+                // 2. Large Scale "Clumping" (Low Frequency)
+                float clumpNoise = snoise(vOriginalPos * 3.0) * 0.5 + 0.5; // Reduced from 4.0
+                
+                // 3. Micro-detail / Texture (High Frequency)
+                float leafDetail = snoise(vOriginalPos * 25.0) * 0.5 + 0.5; // Reduced from 120.0 (Huge reduction for blur effect)
+                
+                // 4. Subtle Time-based "Shifting"
+                float breeze = snoise(vOriginalPos * 10.0 + vec3(uTime * 0.05)) * 0.1;
 
-                vec3 deepForest = vec3(0.01, 0.15, 0.12);   // Bluish Deep Green
-                vec3 healthyLeaf = vec3(0.08, 0.45, 0.10);  // Vibrant Emerald
-                vec3 mossTips = vec3(0.20, 0.55, 0.22);     // Bright Mint/Lime
-                
-                vec3 finalLeafColor = mix(deepForest, healthyLeaf, leafMix);
-                finalLeafColor = mix(finalLeafColor, mossTips, pow(detailN, 3.0) * 0.7);
+                // Color Palette
+                vec3 deepGreen   = vec3(0.01, 0.12, 0.08);   // Very dark forest shadow
+                vec3 healthyLeaf = vec3(0.05, 0.35, 0.12);   // Standard emerald green
+                vec3 vibrantLeaf = vec3(0.12, 0.55, 0.15);   // Bright, sun-lit green
+                vec3 limeTips    = vec3(0.35, 0.65, 0.20);   // Yellow-green highlights
+                vec3 autumnHint  = vec3(0.45, 0.35, 0.10);   // Subtle orange/brown for variety
+                vec3 pineBlue    = vec3(0.05, 0.25, 0.30);   // Slightly bluish-green
 
-                // --- Stylized Shading ---
+                // Mix logic
+                // Base forest mix
+                vec3 baseColor = mix(deepGreen, healthyLeaf, treeNoise);
+                
+                // Apply clumping for variety (some patches are more vibrant, some more bluish)
+                vec3 clusterColor = mix(pineBlue, vibrantLeaf, clumpNoise);
+                vec3 finalLeafColor = mix(baseColor, clusterColor, 0.45);
+                
+                // Add autumn hints in specific patches
+                float autumnIntensity = smoothstep(0.7, 0.95, clumpNoise * treeNoise);
+                finalLeafColor = mix(finalLeafColor, autumnHint, autumnIntensity * 0.3);
+
+                // Add highlight/moss tips based on height and micro-detail
+                float highlightMask = pow(treeNoise, 3.0) * leafDetail;
+                finalLeafColor = mix(finalLeafColor, limeTips, highlightMask * 0.4);
+
+                // Micro-detail texture variation
+                finalLeafColor *= (0.9 + leafDetail * 0.2);
+
+                // --- Stylized Shading & Translucency ---
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
-                float fresnel = pow(1.0 - max(0.0, dot(viewDir, vNormal)), 2.5);
-                finalLeafColor = mix(finalLeafColor, mossTips * 1.4, fresnel * 0.3 * maskF);
+                float fresnel = pow(1.0 - max(0.0, dot(viewDir, vNormal)), 3.0);
+                
+                // Backlight effect (Rim lighting)
+                // Using limeTips for the glow to simulate translucency
+                vec3 rimColor = limeTips * 1.5;
+                finalLeafColor = mix(finalLeafColor, rimColor, fresnel * 0.5 * maskF);
+                
+                // Subtle global variation across the sphere
+                float globalVar = snoise(vOriginalPos * 0.5) * 0.1;
+                finalLeafColor += globalVar;
 
                 diffuseColor.rgb = finalLeafColor;
 `;
@@ -668,10 +1073,15 @@ if (maskF < 0.001) discard;
             <primitive
                 object={forestMesh}
                 material={forestMaterialRef.current}
-                scale={0.4}
+                scale={0.395}
                 position={[0, 0, 0]}
                 rotation={[-1.5, 0, 0.05]}
             />
+            {/* Move butterflies back to root to ensure world-space scale (radius ~1.0) */}
+            <ButterflyParticles intensity={(values[1] > 50) ? (values[1] - 50) / 50 : 0} />
+
+            {/* Wind Effect for Q2 Left (Mountain/Desert) - S2 < 50 */}
+            <WindParticles intensity={(values[1] < 50) ? (50 - values[1]) / 50 : 0} />
         </group>
     );
 };
