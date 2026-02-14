@@ -1432,8 +1432,8 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
         if (cometRef.current) {
             const time = state.clock.elapsedTime;
 
-            // Visibility logic: Show comets ONLY in Q4
-            const cometsVisible = currentSection === 3;
+            // Visibility logic: Show comets starting from Q4 and keep them visible
+            const cometsVisible = currentSection >= 3;
 
             cometRef.current.traverse((child) => {
                 if ((child as any).isMesh) {
@@ -1448,28 +1448,22 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                     }
 
                     // Morph target sequential logic
+                    // For comets, always use the curiosity score (values[3]) once reached or passed Q4
                     if (mesh.visible && mesh.morphTargetInfluences && mesh.morphTargetDictionary) {
                         const idx = mesh.morphTargetDictionary['high'];
                         if (idx !== undefined) {
                             let targetValue = 0;
-                            // Calculate progress within currentSection if needed, 
-                            // but assume 'values[currentSection]' is what we use as p
-                            const p = values[currentSection] / 100;
+                            const p = values[3] / 100;
 
                             if (mesh.name === 'OpenToExp_1') {
-                                // 0% (p=0) -> 0, 25% (p=0.25) -> 1
                                 targetValue = Math.min(1.0, p / 0.25);
                             } else if (mesh.name === 'OpenToExp_2') {
-                                // 25% (p=0.25) -> 0, 35% (p=0.35) -> 1
                                 targetValue = Math.max(0.0, Math.min(1.0, (p - 0.25) / 0.10));
                             } else if (mesh.name === 'OpenToExp_3') {
-                                // 30% (p=0.30) -> 0, 50% (p=0.50) -> 1
                                 targetValue = Math.max(0.0, Math.min(1.0, (p - 0.30) / 0.20));
                             } else if (mesh.name === 'OpenToExp_4') {
-                                // 50% (p=0.50) -> 0, 75% (p=0.75) -> 1
                                 targetValue = Math.max(0.0, Math.min(1.0, (p - 0.50) / 0.25));
                             } else if (mesh.name === 'OpenToExp_5') {
-                                // 75% (p=0.75) -> 0, 100% (p=1.0) -> 1
                                 targetValue = Math.max(0.0, Math.min(1.0, (p - 0.75) / 0.25));
                             }
 
@@ -1478,8 +1472,6 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                     }
                 }
             });
-
-            // NO MESH MOVEMENT - Only texture animation is handled in the traverse above
         }
     });
 
