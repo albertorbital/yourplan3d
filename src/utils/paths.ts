@@ -1,3 +1,4 @@
+/** Utility for asset path prefixing - Trigger deployment */
 export const getAssetPath = (path: string) => {
     const basePath = '/yourplan3d';
     if (path.startsWith('http') || path.startsWith('//')) return path;
