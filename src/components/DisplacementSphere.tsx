@@ -3,9 +3,10 @@ import { useFrame } from '@react-three/fiber';
 import { useFBX, useGLTF, Environment, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { Mesh, Color, MeshStandardMaterial, Group } from 'three';
+import { getAssetPath } from '@/utils/paths';
 
 // Preload to avoid waterfalls
-useGLTF.preload('/models/forest.glb');
+useGLTF.preload(getAssetPath('/models/forest.glb'));
 
 // --- SHADER HELPERS ---
 const noisePars = `
@@ -79,7 +80,7 @@ float getGrowthAlpha(vec3 pos, vec3 seedPoint, float intensity) {
 `;
 
 // Preload to avoid waterfalls
-useGLTF.preload('/models/forest.glb');
+useGLTF.preload(getAssetPath('/models/forest.glb'));
 
 interface DisplacementSphereProps {
     values: number[];
@@ -550,24 +551,24 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     tintColor,
     tintOpacity
 }) => {
-    const base = useFBX('/models/base.fbx');
-    const desert = useFBX('/models/desert.fbx');
-    const ocean = useFBX('/models/ocean.fbx');
-    const comets = useFBX('/models/Comets.fbx');
+    const base = useFBX(getAssetPath('/models/base.fbx'));
+    const desert = useFBX(getAssetPath('/models/desert.fbx'));
+    const ocean = useFBX(getAssetPath('/models/ocean.fbx'));
+    const comets = useFBX(getAssetPath('/models/Comets.fbx'));
     // FOREST GLTF (Keep loading it to avoid errors, but don't use it yet)
-    useGLTF.preload('/models/forest.glb');
-    const forestGLTF = useGLTF('/models/forest.glb');
-    const ringFBX = useFBX('/models/Ring.fbx');
-    const cloudsFBX = useFBX('/models/Clouds.fbx');
+    useGLTF.preload(getAssetPath('/models/forest.glb'));
+    const forestGLTF = useGLTF(getAssetPath('/models/forest.glb'));
+    const ringFBX = useFBX(getAssetPath('/models/Ring.fbx'));
+    const cloudsFBX = useFBX(getAssetPath('/models/Clouds.fbx'));
 
     // Load textures for rings
     const [moonTex, martianTex, stripesTex, magmaTex, rockyMarsTex, ring0Tex] = useTexture([
-        '/textures/rings/moon.png',
-        '/textures/rings/martian.png',
-        '/textures/rings/stripes.png',
-        '/textures/rings/magma.png',
-        '/textures/rings/mars_rocky.png',
-        '/textures/rings/ring0_ochre.png'
+        getAssetPath('/textures/rings/moon.png'),
+        getAssetPath('/textures/rings/martian.png'),
+        getAssetPath('/textures/rings/stripes.png'),
+        getAssetPath('/textures/rings/magma.png'),
+        getAssetPath('/textures/rings/mars_rocky.png'),
+        getAssetPath('/textures/rings/ring0_ochre.png')
     ]);
 
     // Setup planetary textures for full wrapping
