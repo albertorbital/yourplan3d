@@ -362,6 +362,7 @@ export default function WorldQuiz() {
                                                 if (idx === currentQuestionIndex) return sliderValue;
                                                 return answers[q.id] ?? 50;
                                             })}
+                                            currentSection={currentQuestionIndex}
                                             tintColor={tintInfo.color}
                                             tintOpacity={tintInfo.opacity}
                                         />

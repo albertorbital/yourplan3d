@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useFBX, useGLTF, Environment } from '@react-three/drei';
+import { useFBX, useGLTF, Environment, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { Mesh, Color, MeshStandardMaterial, Group } from 'three';
 
@@ -83,12 +83,16 @@ useGLTF.preload('/models/forest.glb');
 
 interface DisplacementSphereProps {
     values: number[];
+    currentSection: number;
+    tintColor?: string;
+    tintOpacity?: number;
 }
 
 // --- BUTTERFLY PARTICLES ---
 // --- BUTTERFLY/FIREFLY SHADERS ---
 const butterflyVertexShader = `
     uniform float uTime;
+    uniform float uSpeed;
     uniform float uIntensity;
     uniform vec3 uSeedPoint;
     attribute float pSize;
@@ -124,7 +128,7 @@ const butterflyVertexShader = `
 
         // DRASTIC MOVEMENT (Scaled for radius 1.25)
         vec3 pos = position;
-        float t = uTime * (1.5 + pSeed.z * 1.0);
+        float t = uTime * uSpeed * (1.5 + pSeed.z * 1.0);
         pos.x += sin(t + pSeed.x * 10.0) * 1.5 * growth;
         pos.y += cos(t * 0.8 + pSeed.y * 10.0) * 1.5 * growth;
         pos.z += sin(t * 1.3 + pSeed.x * 10.0) * 1.5 * growth;
@@ -134,6 +138,91 @@ const butterflyVertexShader = `
         // Balanced pixel size for the distance
         gl_PointSize = pSize * (60.0 / -mvPosition.z) * growth;
         gl_Position = projectionMatrix * mvPosition;
+    }
+`;
+
+const cometFragmentShader = `
+    uniform float uTime;
+    varying vec2 vUv;
+    varying vec3 vPos;
+    
+    ${noisePars}
+    
+    void main() {
+        // Palette v3 (Lighter Blue Rock, Blue/Cyan Energy, NO WHITE)
+        vec3 lightBlueRock = vec3(0.1, 0.25, 0.45); // Lighter blue crust
+        vec3 energyBlue = vec3(0.0, 0.6, 2.0);      // High-intensity Blue
+        vec3 heartCyan = vec3(0.0, 1.2, 1.8);       // High-intensity Cyan
+        
+        // Magma Logic adapted for Comets
+        vec2 uv = vUv * 3.5; 
+        float speed = uTime * 0.2;
+        
+        // Procedural rivers and ridges
+        float noiseFlow = snoise(vec3(uv * 1.0, speed));
+        float ridges = 1.0 - abs(noiseFlow); 
+        float river = smoothstep(0.65, 0.9, ridges);
+        
+        // Rocky noise for crust texture
+        float rockyNoise = snoise(vec3(uv * 4.0, uTime * 0.05)) * 0.5 + 0.5;
+        rockyNoise = pow(rockyNoise, 2.0);
+        
+        // Pulsing core effect
+        float pulse = snoise(vPos * 0.5 + vec3(uTime * 1.2)) * 0.5 + 0.5;
+        
+        // Mix colors based on procedural features
+        vec3 crust = lightBlueRock * (0.5 + 0.5 * rockyNoise);
+        vec3 finalColor = mix(crust, energyBlue, river);
+        finalColor = mix(finalColor, heartCyan, smoothstep(0.85, 1.0, ridges) * pulse);
+        
+        // Intensify glow in rivers (Strictly capped to avoid white)
+        finalColor *= (1.0 + river * 0.6);
+        
+        // Subtle breathing effect
+        float breathing = 0.95 + 0.05 * sin(uTime * 2.0 + vUv.x * 10.0);
+        gl_FragColor = vec4(finalColor * breathing, 1.0);
+    }
+`;
+
+const cloudVertexShader = `
+    uniform float uTime;
+    uniform float uStorm;
+    #include <morphtarget_pars_vertex>
+    varying vec2 vUv;
+    varying vec3 vPos;
+
+    ${noisePars}
+
+    void main() {
+        vUv = uv;
+        #include <begin_vertex>
+        #include <morphtarget_vertex>
+        
+        // Stormy shaking effect
+        if (uStorm > 0.0) {
+            float noise = snoise(vec3(transformed.xy * 25.0, uTime * 20.0));
+            transformed += normal * noise * 0.12 * uStorm;
+            
+            // Randomized jitter (Faster and stronger)
+            transformed.x += sin(uTime * 40.0 + transformed.y) * 0.05 * uStorm;
+            transformed.y += cos(uTime * 35.0 + transformed.x) * 0.05 * uStorm;
+        }
+
+        #include <project_vertex>
+        vPos = transformed;
+    }
+`;
+
+const cloudFragmentShader = `
+    uniform float uStorm;
+    varying vec2 vUv;
+    void main() {
+        // Transition from Stormy Grey (0.4) to Clean White (1.0)
+        float brightness = mix(1.0, 0.45, uStorm);
+        vec3 color = vec3(brightness);
+        
+        float alpha = mix(0.8, 0.9, uStorm); // Slightly more opaque when stormy
+        gl_FragColor = vec4(color, alpha);
     }
 `;
 
@@ -157,6 +246,7 @@ const butterflyFragmentShader = `
 // --- WIND PARTICLES (LINES) ---
 const windVertexShader = `
     uniform float uTime;
+    uniform float uSpeed;
     uniform float uIntensity;
     uniform vec3 uSeedPoint;
     attribute vec3 pSeed;
@@ -172,9 +262,9 @@ const windVertexShader = `
         float align = dot(posNorm, normalize(seedPoint));
         float grad = align * 0.5 + 0.5; 
         float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
-        float growthMap = mix(grad, n, 0.2); 
-        float threshold = 1.05 - (intensity * 1.15);
-        return smoothstep(threshold, threshold + 0.1, growthMap);
+        float growthMap = mix(grad, n, 0.15); 
+        float threshold = 1.05 - (intensity * 1.10);
+        return smoothstep(threshold, threshold + 0.15, growthMap);
     }
 
     // Rotation helper
@@ -184,18 +274,17 @@ const windVertexShader = `
     }
 
     void main() {
-        float growth = getGrowth(position, uSeedPoint, uIntensity);
-        vAlpha = growth * 0.4; // Lower opacity as requested
-
+        float stateGrowth = getGrowth(position, uSeedPoint, uIntensity);
+        
         // 1. Initial Position (Seed)
         vec3 pos = normalize(position); 
         float radius = length(position); // ~2.25
         
         // 2. Horizontal Rotation (Tangent sweep)
-        float t = uTime * (0.6 + pSeed.z * 0.4);
+        float t = uTime * uSpeed * (0.6 + pSeed.z * 0.4);
         float sweepAngle = t + pSeed.x;
         // Apply individual longitudinal shift along the streak
-        sweepAngle -= vRatio * 0.45 * growth; 
+        sweepAngle -= vRatio * 0.45 * stateGrowth; 
         
         pos = rotateY(pos, sweepAngle);
         
@@ -203,12 +292,17 @@ const windVertexShader = `
         // We force it back to a sphere after rotation
         pos = normalize(pos) * (radius + sin(t*2.0 + pSeed.y)*0.05);
 
+        // 4. Dynamic Visibility (Fade in/out based on final location)
+        // This ensures wind is only visible OVER the desert area
+        float locationMask = getGrowth(pos, uSeedPoint, 1.0); 
+        vAlpha = stateGrowth * locationMask * 0.4;
+
         // 4. Thickness Expansion
         // Calculate tangent/bitangent for surface expansion
         vec3 normal = normalize(pos);
         vec3 tangent = normalize(cross(normal, vec3(0.0, 1.0, 0.0)));
         
-        float width = 0.15 * growth; // "Much thicker"
+        float width = 0.15 * stateGrowth; // "Much thicker"
         pos += tangent * vSide * width;
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
@@ -223,7 +317,12 @@ const windFragmentShader = `
     }
 `;
 
-const ButterflyParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
+const ButterflyParticles: React.FC<{ intensity: number, radius?: number, speed?: number, rotation?: [number, number, number] }> = ({
+    intensity,
+    radius = 2.15,
+    speed = 1.0,
+    rotation = [0, 0, 0]
+}) => {
     const count = 400; // Slightly reduced from 600 to avoid clutter
     const meshRef = useRef<THREE.Points>(null);
     const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -235,14 +334,10 @@ const ButterflyParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
         const sds = new Float32Array(count * 3);
 
         const possibleColors = [
-            new THREE.Color('#ff00ff'), // Vibrant Pink
-            new THREE.Color('#00ffff'), // Bright Cyan
-            new THREE.Color('#ffff00'), // Pure Yellow
-            new THREE.Color('#ffaa00'), // Bright Orange
-            new THREE.Color('#44ff88'), // Minty Green
-            new THREE.Color('#ffffff'), // Pure White
-            new THREE.Color('#ff4444'), // Fire Red
-            new THREE.Color('#8844ff'), // Electric Purple
+            new THREE.Color('#22c55e'), // Green
+            new THREE.Color('#3b82f6'), // Blue
+            new THREE.Color('#d8b4fe'), // Lilac
+            new THREE.Color('#8b5cf6'), // Violet
         ];
 
         // Spawn around the forest seed point in WORLD space coordinates (normalized planet)
@@ -251,18 +346,18 @@ const ButterflyParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
         for (let i = 0; i < count; i++) {
             // WIDER RANDOM SPREAD to ensure they don't clump at the center
             const randomOffset = new THREE.Vector3(
-                (Math.random() - 0.5) * 4.0,
-                (Math.random() - 0.5) * 4.0,
-                (Math.random() - 0.5) * 4.0
+                (Math.random() - 0.5) * 5.0,
+                (Math.random() - 0.5) * 5.0,
+                (Math.random() - 0.5) * 5.0
             );
             const dir = seedPoint.clone().add(randomOffset).normalize();
 
             // WORLD RADIUS: 1.2 to 1.6 ensures they are clearly outside base (1.0) and foliage
-            const radius = 2.25 + Math.random() * 0.3;
+            const currentRadius = radius + Math.random() * 0.5;
 
-            pos[i * 3] = dir.x * radius;
-            pos[i * 3 + 1] = dir.y * radius;
-            pos[i * 3 + 2] = dir.z * radius;
+            pos[i * 3] = dir.x * currentRadius;
+            pos[i * 3 + 1] = dir.y * currentRadius;
+            pos[i * 3 + 2] = dir.z * currentRadius;
 
             const c = possibleColors[Math.floor(Math.random() * possibleColors.length)];
             col[i * 3] = c.r;
@@ -276,23 +371,25 @@ const ButterflyParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
             sds[i * 3 + 2] = Math.random() * 1.0;
         }
         return [pos, col, siz, sds];
-    }, []);
+    }, [count, radius]);
 
     const uniforms = useMemo(() => ({
         uTime: { value: 0 },
         uIntensity: { value: 0 },
+        uSpeed: { value: speed },
         uSeedPoint: { value: new THREE.Vector3(0.8, -0.5, 0.3) }
-    }), []);
+    }), [speed]);
 
     useFrame((state) => {
         if (materialRef.current) {
             materialRef.current.uniforms.uTime.value = state.clock.getElapsedTime();
             materialRef.current.uniforms.uIntensity.value = intensity;
+            materialRef.current.uniforms.uSpeed.value = speed;
         }
     });
 
     return (
-        <points ref={meshRef} frustumCulled={false}>
+        <points ref={meshRef} frustumCulled={false} rotation={rotation}>
             <bufferGeometry>
                 <bufferAttribute
                     attach="attributes-position"
@@ -326,7 +423,12 @@ const ButterflyParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
     );
 };
 
-const WindParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
+const WindParticles: React.FC<{ intensity: number, radius?: number, speed?: number, rotation?: [number, number, number] }> = ({
+    intensity,
+    radius = 3.5,
+    speed = 1.0,
+    rotation = [0, 0, 0]
+}) => {
     const streakCount = 60; // Fewer but thicker
     const segmentsPerStreak = 8; // Smooth curving
 
@@ -354,9 +456,9 @@ const WindParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
                 (Math.random() - 0.5) * 5.5
             );
             const dir = seedPoint.clone().add(randomOffset).normalize();
-            const radius = 3.25 + Math.random() * 0.7;
+            const currentRadius = radius + Math.random() * 0.5;
 
-            const baseP = dir.multiplyScalar(radius);
+            const baseP = dir.multiplyScalar(currentRadius);
             const sx = Math.random() * 1000.0;
             const sy = Math.random() * 1000.0;
             const sz = Math.random() * 1.0;
@@ -393,7 +495,7 @@ const WindParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
             }
         }
         return [pos, sds, rats, sdes, idxs];
-    }, [streakCount]);
+    }, [streakCount, radius]);
 
     const posAttr = useMemo(() => new THREE.BufferAttribute(positions, 3), [positions]);
     const sdsAttr = useMemo(() => new THREE.BufferAttribute(seeds, 3), [seeds]);
@@ -404,18 +506,20 @@ const WindParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
     const uniforms = useMemo(() => ({
         uTime: { value: 0 },
         uIntensity: { value: 0 },
+        uSpeed: { value: speed },
         uSeedPoint: { value: new THREE.Vector3(0.8, -0.5, 0.3) }
-    }), []);
+    }), [speed]);
 
     useFrame((state) => {
         if (materialRef.current) {
             materialRef.current.uniforms.uTime.value = state.clock.getElapsedTime();
             materialRef.current.uniforms.uIntensity.value = intensity;
+            materialRef.current.uniforms.uSpeed.value = speed;
         }
     });
 
     return (
-        <mesh ref={meshRef} frustumCulled={false}>
+        <mesh ref={meshRef} frustumCulled={false} rotation={rotation}>
             <bufferGeometry>
                 <primitive object={posAttr} attach="attributes-position" />
                 <primitive object={sdsAttr} attach="attributes-pSeed" />
@@ -441,24 +545,213 @@ const WindParticles: React.FC<{ intensity: number }> = ({ intensity }) => {
 // --- STYLIZED SHADERS REMOVED DUPLICATES ---
 
 export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
-    values
+    values,
+    currentSection,
+    tintColor,
+    tintOpacity
 }) => {
     const base = useFBX('/models/base.fbx');
     const desert = useFBX('/models/desert.fbx');
     const ocean = useFBX('/models/ocean.fbx');
+    const comets = useFBX('/models/Comets.fbx');
     // FOREST GLTF (Keep loading it to avoid errors, but don't use it yet)
     useGLTF.preload('/models/forest.glb');
     const forestGLTF = useGLTF('/models/forest.glb');
+    const ringFBX = useFBX('/models/Ring.fbx');
+    const cloudsFBX = useFBX('/models/Clouds.fbx');
+
+    // Load textures for rings
+    const [moonTex, martianTex, stripesTex, magmaTex, rockyMarsTex, ring0Tex] = useTexture([
+        '/textures/rings/moon.png',
+        '/textures/rings/martian.png',
+        '/textures/rings/stripes.png',
+        '/textures/rings/magma.png',
+        '/textures/rings/mars_rocky.png',
+        '/textures/rings/ring0_ochre.png'
+    ]);
+
+    // Setup planetary textures for full wrapping
+    useEffect(() => {
+        if (stripesTex) {
+            stripesTex.wrapS = stripesTex.wrapT = THREE.RepeatWrapping;
+            stripesTex.repeat.set(4, 4);
+        }
+        if (ring0Tex) {
+            ring0Tex.wrapS = ring0Tex.wrapT = THREE.RepeatWrapping;
+            // "Zoom in" logic: smaller repeat value covers the mesh with a larger segment of the texture
+            ring0Tex.repeat.set(0.5, 0.5);
+            ring0Tex.offset.set(0.25, 0.25); // Recenter the zoom
+        }
+    }, [stripesTex, ring0Tex]);
+
+    // Setup stable materials for rings to avoid recreating them every frame
+    const ringMaterials = useMemo(() => {
+        return {
+            planetary: new THREE.MeshStandardMaterial({
+                map: ring0Tex,
+                side: THREE.DoubleSide,
+                transparent: false,
+                roughness: 0.6,
+                metalness: 0.2,
+                depthTest: true,
+                depthWrite: true
+            }),
+            magma: new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uMagmaTex: { value: magmaTex }
+                },
+                vertexShader: `
+                    #include <morphtarget_pars_vertex>
+                    varying vec2 vUv;
+                    varying vec3 vPos;
+                    void main() {
+                        vUv = uv;
+                        #include <begin_vertex>
+                        #include <morphtarget_vertex>
+                        #include <project_vertex>
+                        vPos = transformed;
+                    }
+                `,
+                fragmentShader: `
+                    precision highp float;
+                    uniform float uTime;
+                    varying vec2 vUv;
+                    varying vec3 vPos;
+                    
+                    ${noisePars}
+                    
+                    void main() {
+                        // Large Scale Texture (Lower Tiling for zoom effect)
+                        vec2 tiledUv = vUv * 3.0; 
+                        
+                        // Broader volcan-style ridges for smoother rivers
+                        float noiseFlow = snoise(vec3(tiledUv * 1.0, uTime * 0.15));
+                        float ridges = 1.0 - abs(noiseFlow); 
+                        float river = smoothstep(0.7, 0.9, ridges);
+                        
+                        // Rocky logic: adjusted frequency for larger scale
+                        float rockyNoise = snoise(vec3(tiledUv * 3.0, uTime * 0.05)) * 0.5 + 0.5;
+                        rockyNoise = pow(rockyNoise, 2.5); 
+                        
+                        // Pulse logic
+                        float pulseN = snoise(vPos * 0.3 + vec3(uTime * 1.5)) * 0.5 + 0.5;
+                        
+                        // Vibrant Orange/Gold Palette
+                        vec3 crustOrange = vec3(0.65, 0.2, 0.0) * (0.3 + 0.7 * rockyNoise);
+                        vec3 vibrantOrange = vec3(1.8, 0.45, 0.0); // Hot orange
+                        vec3 goldenOrange = vec3(2.5, 1.5, 0.1);  // Emissive gold/orange
+                        
+                        vec3 magmaMix = mix(crustOrange, vibrantOrange, river);
+                        magmaMix = mix(magmaMix, goldenOrange, smoothstep(0.85, 1.0, ridges) * pulseN);
+                        
+                        // Final Intensity Boost
+                        magmaMix *= (1.0 + river * 0.8); 
+                        
+                        // Breathing glow
+                        float breathing = 0.9 + 0.1 * sin(uTime * 3.0 + vUv.x * 20.0);
+                        gl_FragColor = vec4(magmaMix * breathing, 1.0);
+                    }
+                `,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthTest: true,
+                depthWrite: true
+            }),
+            moon: new THREE.MeshStandardMaterial({
+                map: moonTex,
+                color: '#666666',
+                side: THREE.DoubleSide,
+                transparent: true,
+                roughness: 0.9,
+                depthTest: true,
+                depthWrite: true
+            }),
+            martian: new THREE.MeshStandardMaterial({
+                map: rockyMarsTex,
+                color: '#aaaaaa', // Grittier, less red
+                side: THREE.DoubleSide,
+                transparent: true,
+                roughness: 0.9,
+                metalness: 0.0,
+                depthTest: true,
+                depthWrite: true
+            }),
+            comet: new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 }
+                },
+                vertexShader: `
+                    #include <morphtarget_pars_vertex>
+                    varying vec2 vUv;
+                    varying vec3 vPos;
+                    void main() {
+                        vUv = uv;
+                        #include <begin_vertex>
+                        #include <morphtarget_vertex>
+                        #include <project_vertex>
+                        vPos = transformed;
+                    }
+                `,
+                fragmentShader: cometFragmentShader,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthTest: true,
+                depthWrite: true,
+                // @ts-ignore
+                morphTargets: true
+            }),
+            cloud: new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uStorm: { value: 0 }
+                },
+                vertexShader: cloudVertexShader,
+                fragmentShader: cloudFragmentShader,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthTest: true,
+                depthWrite: false,
+                // @ts-ignore
+                morphTargets: true
+            })
+        };
+    }, [moonTex, martianTex, stripesTex, magmaTex, rockyMarsTex, ring0Tex]);
     // const forest = forestGLTF.scene; // Unused for now
 
     // Create clones for overlays
     const materialRef = useRef<MeshStandardMaterial>(null);
     const forestMaterialRef = useRef<MeshStandardMaterial>(null);
+    const ringRef = useRef<THREE.Group>(null);
+    const cometRef = useRef<THREE.Group>(null);
+    const cloudsRef = useRef<THREE.Group>(null);
+    const planetAssemblyRef = useRef<THREE.Group>(null);
 
     const forestMesh = useMemo(() => {
-        const f = forestGLTF.scene.clone();
-        return f;
+        return forestGLTF.scene.clone();
     }, [forestGLTF]);
+
+    const ringGroup = useMemo(() => {
+        const group = ringFBX.clone();
+        group.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+                // 1. Morph enforcement - Force all to 1.0 for expanded state
+                if (mesh.morphTargetInfluences) {
+                    for (let i = 0; i < mesh.morphTargetInfluences.length; i++) {
+                        mesh.morphTargetInfluences[i] = 1.0;
+                    }
+                }
+                // (Geometry translation removed as it breaks morph attribute sync)
+            }
+        });
+        return group;
+    }, [ringFBX]);
+
+    useEffect(() => {
+        // Optional: Keep a simple log to confirm load if needed, or remove completely
+        console.log("Rings synchronized with standard scale 100 and active morphs.");
+    }, [ringGroup]);
 
     const customUniforms = useRef({
         uSliders: { value: [0.5, 0.5, 0.5, 0.5, 0.5] },
@@ -552,8 +845,8 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 // Helper to get Growth Alpha based on specific point
                 float getGrowthAlpha(vec3 pos, vec3 seedPoint, float intensity) {
                     vec3 posNorm = normalize(pos);
-    if (intensity <= 0.0) return 0.0;
-    if (intensity >= 1.0) return 1.0;
+                    if (intensity <= 0.0) return 0.0;
+                    if (intensity >= 1.0) return 1.0;
                     
                     float align = dot(posNorm, normalize(seedPoint));
                     float grad = align * 0.5 + 0.5; 
@@ -561,9 +854,9 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                     float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
                     float growthMap = mix(grad, n, 0.15); 
                     
-                    float threshold = 1.02 - (intensity * 1.05);
-    return smoothstep(threshold, threshold + 0.02, growthMap);
-}
+                    float threshold = 1.05 - (intensity * 1.10);
+                    return smoothstep(threshold, threshold + 0.15, growthMap);
+                }
 ` + shader.vertexShader;
 
             const maskedMorphLogic = `
@@ -579,7 +872,7 @@ vOriginalPos = position;
     float intenForest = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
     
     vec3 p1 = vec3(0.0, 1.0, 0.0); // Q1 Top (Volcano / Ocean)
-    vec3 p2 = vec3(0.8, -0.5, 0.3); // Q2 Side (Desert / Forest)
+    vec3 p2 = vec3(0.8, -0.5, 0.3); // Q2 Unified Reveal (Right)
     float aV = getGrowthAlpha(transformed, p1, intenVolcano);
     float aO = getGrowthAlpha(transformed, p1, intenOcean);
     float aD = getGrowthAlpha(transformed, p2, intenDesert);
@@ -656,9 +949,9 @@ for (int i = 0; i < 8; i++) {
                     float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
                     float growthMap = mix(grad, n, 0.15); 
                     
-                    float threshold = 1.02 - (intensity * 1.05);
-    return smoothstep(threshold, threshold + 0.02, growthMap);
-}
+                    float threshold = 1.05 - (intensity * 1.10);
+                    return smoothstep(threshold, threshold + 0.15, growthMap);
+                }
 ` + shader.fragmentShader;
 
             const normalLogic = `
@@ -867,8 +1160,8 @@ if (alphaForest_r > 0.01) roughnessFactor = mix(roughnessFactor, 0.8, alphaFores
                     float grad = align * 0.5 + 0.5; 
                     float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
                     float growthMap = mix(grad, n, 0.15); 
-                    float threshold = 1.02 - (intensity * 1.05);
-                    return smoothstep(threshold, threshold + 0.02, growthMap);
+                    float threshold = 1.05 - (intensity * 1.10);
+                    return smoothstep(threshold, threshold + 0.15, growthMap);
                 }
 ` + shader.vertexShader;
 
@@ -880,7 +1173,7 @@ vOriginalPos = position;
 vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 float intenForest_v = (uSliders[1] > 0.5) ? (uSliders[1] - 0.5) * 2.0 : 0.0;
                 float maskF_v = getGrowthAlpha(transformed, vec3(0.8, -0.5, 0.3), intenForest_v);
-if (maskF_v < 0.001) transformed *= 0.0001; // Scale down hidden leaves to avoid artifacts
+                transformed *= mix(0.0001, 1.0, maskF_v);
 `
             );
 
@@ -899,8 +1192,8 @@ if (maskF_v < 0.001) transformed *= 0.0001; // Scale down hidden leaves to avoid
                     float grad = align * 0.5 + 0.5; 
                     float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
                     float growthMap = mix(grad, n, 0.15); 
-                    float threshold = 1.02 - (intensity * 1.05);
-                    return smoothstep(threshold, threshold + 0.02, growthMap);
+                    float threshold = 1.05 - (intensity * 1.10);
+                    return smoothstep(threshold, threshold + 0.15, growthMap);
                 }
 ` + shader.fragmentShader;
 
@@ -1054,6 +1347,212 @@ if (maskF_v < 0.001) transformed *= 0.0001; // Scale down hidden leaves to avoid
         });
     });
 
+    useFrame((state) => {
+        if (ringRef.current) {
+            // Determine ring morph values based on currentSection and slider (Question 3 logic)
+            // Questions: 0: empathy, 1: sociable, 2: persistent (Q3), 3: curious, 4: relaxed
+
+            // Visibility logic: hide until Q3 or later
+            const ringsVisible = currentSection >= 2;
+
+            // Initial Q3 state (slider 50): ring_0 = 0.5, others = 0
+            let r0_val = 0.5;
+            let r1_val = 0;
+            let r2_val = 0;
+            let r3_val = 0;
+
+            if (currentSection === 2) {
+                const s = values[2] || 0; // 0 to 100
+                // Ring 0: Linear mapping from 0% (0.0) -> 50% (0.5) -> 100% (1.0)
+                r0_val = s / 100;
+
+                // Ring 1: 50% to 65% (0 -> 1)
+                if (s > 50) r1_val = Math.min(1.0, (s - 50) / (65 - 50));
+
+                // Ring 2: 65% to 85% (0 -> 1)
+                if (s > 65) r2_val = Math.min(1.0, (s - 65) / (85 - 65));
+
+                // Ring 3: 85% to 100% (0 -> 1)
+                if (s > 85) r3_val = Math.min(1.0, (s - 85) / (100 - 85));
+            } else if (currentSection > 2) {
+                // If past Q3, use the final answer for Q3 to keep them static but visible
+                const fs = values[2] || 0;
+                r0_val = fs / 100;
+                r1_val = fs > 50 ? Math.min(1.0, (fs - 50) / (65 - 50)) : 0;
+                r2_val = fs > 65 ? Math.min(1.0, (fs - 65) / (85 - 65)) : 0;
+                r3_val = fs > 85 ? Math.min(1.0, (fs - 85) / (100 - 85)) : 0;
+            }
+
+            ringRef.current.traverse((child) => {
+                if ((child as any).isMesh) {
+                    const mesh = child as THREE.Mesh;
+                    mesh.visible = ringsVisible;
+                    mesh.frustumCulled = false;
+
+                    const lowerName = mesh.name.toLowerCase();
+
+                    // 1. Update Time Uniform
+                    if (mesh.material && (mesh.material as any).uniforms && (mesh.material as any).uniforms.uTime) {
+                        (mesh.material as any).uniforms.uTime.value = state.clock.elapsedTime;
+                    }
+
+                    // 2. Assign specific materials and handle scales 
+                    let activeMorph = 0;
+                    if (lowerName === 'ring' || lowerName === 'ring_0') {
+                        mesh.material = ringMaterials.planetary;
+                        mesh.scale.set(100, 100, 100);
+                        activeMorph = r0_val;
+                    } else if (lowerName === 'ring_1') {
+                        mesh.material = ringMaterials.magma;
+                        mesh.scale.set(100, 100, 100);
+                        activeMorph = r1_val;
+                    } else if (lowerName === 'ring_2') {
+                        mesh.material = ringMaterials.moon;
+                        mesh.scale.set(100, 100, 100);
+                        activeMorph = r2_val;
+                    } else if (lowerName === 'ring_3') {
+                        mesh.material = ringMaterials.martian;
+                        mesh.scale.set(100, 100, 100);
+                        activeMorph = r3_val;
+                    }
+
+                    // 3. Dynamic Morph Target Enforcement (high state)
+                    if (mesh.morphTargetInfluences) {
+                        for (let i = 0; i < mesh.morphTargetInfluences.length; i++) {
+                            mesh.morphTargetInfluences[i] = activeMorph;
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    useFrame((state) => {
+        if (cometRef.current) {
+            const time = state.clock.elapsedTime;
+
+            // Visibility logic: Show comets ONLY in Q4
+            const cometsVisible = currentSection === 3;
+
+            cometRef.current.traverse((child) => {
+                if ((child as any).isMesh) {
+                    const mesh = child as THREE.Mesh;
+                    mesh.visible = cometsVisible;
+                    mesh.material = ringMaterials.comet;
+                    mesh.scale.set(100, 100, 100);
+
+                    // Time animation
+                    if (mesh.material && (mesh.material as any).uniforms?.uTime) {
+                        (mesh.material as any).uniforms.uTime.value = time;
+                    }
+
+                    // Morph target sequential logic
+                    if (mesh.visible && mesh.morphTargetInfluences && mesh.morphTargetDictionary) {
+                        const idx = mesh.morphTargetDictionary['high'];
+                        if (idx !== undefined) {
+                            let targetValue = 0;
+                            // Calculate progress within currentSection if needed, 
+                            // but assume 'values[currentSection]' is what we use as p
+                            const p = values[currentSection] / 100;
+
+                            if (mesh.name === 'OpenToExp_1') {
+                                // 0% (p=0) -> 0, 25% (p=0.25) -> 1
+                                targetValue = Math.min(1.0, p / 0.25);
+                            } else if (mesh.name === 'OpenToExp_2') {
+                                // 25% (p=0.25) -> 0, 35% (p=0.35) -> 1
+                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.25) / 0.10));
+                            } else if (mesh.name === 'OpenToExp_3') {
+                                // 30% (p=0.30) -> 0, 50% (p=0.50) -> 1
+                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.30) / 0.20));
+                            } else if (mesh.name === 'OpenToExp_4') {
+                                // 50% (p=0.50) -> 0, 75% (p=0.75) -> 1
+                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.50) / 0.25));
+                            } else if (mesh.name === 'OpenToExp_5') {
+                                // 75% (p=0.75) -> 0, 100% (p=1.0) -> 1
+                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.75) / 0.25));
+                            }
+
+                            mesh.morphTargetInfluences[idx] = targetValue;
+                        }
+                    }
+                }
+            });
+
+            // NO MESH MOVEMENT - Only texture animation is handled in the traverse above
+        }
+    });
+
+    const cloudMapping = useMemo(() => {
+        const intervals = [
+            [0.00, 0.15],
+            [0.10, 0.30],
+            [0.20, 0.40],
+            [0.35, 0.55],
+            [0.50, 0.70],
+            [0.65, 0.85],
+            [0.75, 0.95],
+            [0.85, 1.00]
+        ];
+
+        // Shuffle intervals to randomize which cloud disappears when
+        const shuffled = [...intervals].sort(() => Math.random() - 0.5);
+
+        const mapping: Record<string, number[]> = {};
+        for (let i = 1; i <= 8; i++) {
+            mapping[`Cloud_${i}`] = shuffled[i - 1];
+        }
+        return mapping;
+    }, []);
+
+    useFrame((state) => {
+        if (cloudsRef.current) {
+            // Visibility logic: Show clouds ONLY in Q5
+            const cloudsVisible = currentSection === 4;
+            const p = (values[4] || 0) / 100;
+            const stormIntensity = Math.max(0.0, 1.0 - (p / 0.49)); // 1.0 at 0%, 0.0 at 49%
+
+            cloudsRef.current.traverse((child) => {
+                if ((child as any).isMesh) {
+                    const mesh = child as THREE.Mesh;
+                    mesh.visible = cloudsVisible;
+                    mesh.scale.set(100, 100, 100);
+                    mesh.material = ringMaterials.cloud;
+
+                    // Update uniforms
+                    if (mesh.material instanceof THREE.ShaderMaterial) {
+                        mesh.material.uniforms.uTime.value = state.clock.elapsedTime;
+                        mesh.material.uniforms.uStorm.value = stormIntensity;
+                    }
+
+                    const name = mesh.name;
+                    let targetVal = 1.0;
+
+                    // Apply randomized mapping logic
+                    const interval = cloudMapping[name];
+                    if (interval) {
+                        const [start, end] = interval;
+                        targetVal = 1.0 - Math.min(1.0, Math.max(0.0, (p - start) / (end - start)));
+                    }
+
+                    if (mesh.morphTargetInfluences && mesh.morphTargetDictionary) {
+                        const idx = mesh.morphTargetDictionary['high'];
+                        if (idx !== undefined) {
+                            mesh.morphTargetInfluences[idx] = targetVal;
+                        }
+                    }
+
+                    // Hide mesh completely if morph is 0 to save performance
+                    if (targetVal <= 0.001) mesh.visible = false;
+                }
+            });
+        }
+
+        // Constant slow rotation for the whole planet
+        if (planetAssemblyRef.current) {
+            planetAssemblyRef.current.rotation.y += 0.002; // Very slow and steady
+        }
+    });
+
     const blueLightInt = (values[0] > 50) ? (values[0] / 100 - 0.5) * 2.0 * 0.8 : 0.0;
     const warmLightInt = (values[0] < 50) ? 0.5 + ((0.5 - values[0] / 100) * 2.0 * 0.5) : 0.5;
 
@@ -1069,19 +1568,38 @@ if (maskF_v < 0.001) transformed *= 0.0001; // Scale down hidden leaves to avoid
 
             <ambientLight intensity={0.15} />
 
-            <primitive object={baseMesh} material={materialRef.current} scale={0.004} />
-            <primitive
-                object={forestMesh}
-                material={forestMaterialRef.current}
-                scale={0.395}
-                position={[0, 0, 0]}
-                rotation={[-1.5, 0, 0.05]}
-            />
-            {/* Move butterflies back to root to ensure world-space scale (radius ~1.0) */}
-            <ButterflyParticles intensity={(values[1] > 50) ? (values[1] - 50) / 50 : 0} />
+            <group ref={planetAssemblyRef}>
+                <primitive object={baseMesh} material={materialRef.current} scale={0.004} />
+                <primitive
+                    object={forestMesh}
+                    material={forestMaterialRef.current}
+                    scale={0.395}
+                    position={[0, 0, 0]}
+                    rotation={[-1.5, 0, 0.05]}
+                />
+                {/* Butterflies appear when Forest slider > 50% */}
+                {/* Q3 Rings */}
+                <primitive object={ringGroup} ref={ringRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} />
 
-            {/* Wind Effect for Q2 Left (Mountain/Desert) - S2 < 50 */}
-            <WindParticles intensity={(values[1] < 50) ? (50 - values[1]) / 50 : 0} />
+                {/* Comets */}
+                <primitive object={comets} ref={cometRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} />
+
+                {/* Clouds */}
+                <primitive object={cloudsFBX} ref={cloudsRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} />
+
+                <ButterflyParticles
+                    intensity={(values[1] > 50) ? (values[1] - 50) / 50 : 0}
+                    radius={2.15}
+                    speed={1.0}
+                />
+
+                {/* Wind appears when Forest slider < 50% */}
+                <WindParticles
+                    intensity={(values[1] < 50) ? (50 - values[1]) / 50 : 0}
+                    radius={4.5}
+                    speed={1.0}
+                />
+            </group>
         </group>
     );
 };
