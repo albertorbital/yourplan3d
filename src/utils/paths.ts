@@ -9,5 +9,5 @@ export const getAssetPath = (path: string) => {
     // Ensure path starts with /
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
-    return `${basePath}${normalizedPath}`;
+    return encodeURI(`${basePath}${normalizedPath}`);
 };

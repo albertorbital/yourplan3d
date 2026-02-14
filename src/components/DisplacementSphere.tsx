@@ -1560,7 +1560,7 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
     return (
         <group>
             {/* Environment with night preset for better dark blue contrast */}
-            <Environment preset="night" />
+            <Environment files={getAssetPath('/env_map.hdr')} />
             <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
             <directionalLight position={[0, -10, 0]} intensity={blueLightInt * 1.5} color="#0044ff" />
             <directionalLight position={[-10, 5, 10]} intensity={warmLightInt} color={(values[0] < 50) ? "#ffaa00" : "#ffffff"} />
