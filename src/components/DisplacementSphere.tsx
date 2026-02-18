@@ -552,8 +552,6 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     tintOpacity
 }) => {
     const base = useFBX(getAssetPath('/models/base.fbx'));
-    const desert = useFBX(getAssetPath('/models/desert.fbx'));
-    const ocean = useFBX(getAssetPath('/models/ocean.fbx'));
     const comets = useFBX(getAssetPath('/models/Comets.fbx'));
     // FOREST GLTF (Keep loading it to avoid errors, but don't use it yet)
     useGLTF.preload(getAssetPath('/models/forest.glb'));
@@ -777,17 +775,9 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
 
     // Removed useEffect for Forest Geometry
 
-    const desertMaps = useMemo(() => {
-        let map = null;
-        desert.traverse((child: any) => { if (child.isMesh && child.material.map) map = child.material.map; });
-        return map;
-    }, [desert]);
-
-    const oceanMaps = useMemo(() => {
-        let map = null;
-        ocean.traverse((child: any) => { if (child.isMesh && child.material.map) map = child.material.map; });
-        return map;
-    }, [ocean]);
+    // Maps removed for performance optimization
+    const desertMaps = null;
+    const oceanMaps = null;
 
     // Apply uniforms updates
     useEffect(() => {
