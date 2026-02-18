@@ -2,12 +2,10 @@ import { Suspense } from 'react';
 import Hero from '@/components/Hero';
 import PersonalityForm from '@/components/PersonalityForm';
 import WorldQuiz from '@/components/WorldQuiz';
-import { Loader } from '@/components/Loader';
 
 export default function Home() {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Loader />
       <Hero />
       <Suspense fallback={null}>
         <WorldQuiz />
