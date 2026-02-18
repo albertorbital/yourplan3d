@@ -390,7 +390,7 @@ const ButterflyParticles: React.FC<{ intensity: number, radius?: number, speed?:
     });
 
     return (
-        <points ref={meshRef} frustumCulled={false} rotation={rotation}>
+        <points ref={meshRef} frustumCulled={false} rotation={rotation} name="exclusion_butterflies">
             <bufferGeometry>
                 <bufferAttribute
                     attach="attributes-position"
@@ -520,7 +520,7 @@ const WindParticles: React.FC<{ intensity: number, radius?: number, speed?: numb
     });
 
     return (
-        <mesh ref={meshRef} frustumCulled={false} rotation={rotation}>
+        <mesh ref={meshRef} frustumCulled={false} rotation={rotation} name="exclusion_wind">
             <bufferGeometry>
                 <primitive object={posAttr} attach="attributes-position" />
                 <primitive object={sdsAttr} attach="attributes-pSeed" />
@@ -1121,8 +1121,10 @@ if (alphaForest_r > 0.01) roughnessFactor = mix(roughnessFactor, 0.8, alphaFores
         };
 
         const setupMesh = (obj: any) => {
+            obj.name = 'planet_base';
             obj.traverse((child: any) => {
                 if (child.isMesh) {
+                    child.name = 'planet_base_mesh';
                     child.material = mat;
                     child.castShadow = true;
                     child.receiveShadow = true;
@@ -1276,8 +1278,10 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
         };
 
         const setupForestMesh = (obj: any) => {
+            obj.name = 'planet_forest';
             obj.traverse((child: any) => {
                 if (child.isMesh) {
+                    child.name = 'planet_forest_mesh';
                     child.material = fMat;
                     child.castShadow = true;
                     child.receiveShadow = true;
@@ -1562,23 +1566,24 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
             <ambientLight intensity={0.15} />
 
             <group ref={planetAssemblyRef}>
-                <primitive object={baseMesh} material={materialRef.current} scale={0.004} />
+                <primitive object={baseMesh} material={materialRef.current} scale={0.004} name="planet_base" />
                 <primitive
                     object={forestMesh}
                     material={forestMaterialRef.current}
                     scale={0.395}
                     position={[0, 0, 0]}
                     rotation={[-1.5, 0, 0.05]}
+                    name="planet_forest"
                 />
                 {/* Butterflies appear when Forest slider > 50% */}
                 {/* Q3 Rings */}
-                <primitive object={ringGroup} ref={ringRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} />
+                <primitive object={ringGroup} ref={ringRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} name="ring_group" />
 
                 {/* Comets */}
-                <primitive object={comets} ref={cometRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} />
+                <primitive object={comets} ref={cometRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} name="comet_group" />
 
                 {/* Clouds */}
-                <primitive object={cloudsFBX} ref={cloudsRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} />
+                <primitive object={cloudsFBX} ref={cloudsRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} name="clouds_group" />
 
                 <ButterflyParticles
                     intensity={(values[1] > 50) ? (values[1] - 50) / 50 : 0}

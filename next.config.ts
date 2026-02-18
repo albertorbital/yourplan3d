@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // @ts-ignore - Turbopack root config for workspace resolution
+  turbopack: {
+    root: '.',
+  },
 };
 
 export default nextConfig;
