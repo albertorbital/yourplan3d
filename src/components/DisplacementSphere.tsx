@@ -657,7 +657,9 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 transparent: true,
                 side: THREE.DoubleSide,
                 depthTest: true,
-                depthWrite: true
+                depthWrite: true,
+                // @ts-ignore
+                morphTargets: true
             }),
             moon: new THREE.MeshStandardMaterial({
                 map: moonTex,
@@ -1443,7 +1445,10 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 if ((child as any).isMesh) {
                     const mesh = child as THREE.Mesh;
                     mesh.visible = cometsVisible;
-                    mesh.material = ringMaterials.comet;
+
+                    // Assign magma material to comets 6, 7, 8
+                    const isMagmaComet = ['OpenToExp_6', 'OpenToExp_7', 'OpenToExp_8'].includes(mesh.name);
+                    mesh.material = isMagmaComet ? ringMaterials.magma : ringMaterials.comet;
                     mesh.scale.set(100, 100, 100);
 
                     // Time animation
@@ -1459,16 +1464,15 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                             let targetValue = 0;
                             const p = values[3] / 100;
 
-                            if (mesh.name === 'OpenToExp_1') {
-                                targetValue = Math.min(1.0, p / 0.25);
-                            } else if (mesh.name === 'OpenToExp_2') {
-                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.25) / 0.10));
-                            } else if (mesh.name === 'OpenToExp_3') {
-                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.30) / 0.20));
-                            } else if (mesh.name === 'OpenToExp_4') {
-                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.50) / 0.25));
-                            } else if (mesh.name === 'OpenToExp_5') {
-                                targetValue = Math.max(0.0, Math.min(1.0, (p - 0.75) / 0.25));
+                            // Sequential reveal logic for 8 comet meshes
+                            // Each mesh has a 10% window (0-10%, 10-20%, etc.)
+                            const cometMatch = mesh.name.match(/OpenToExp_(\d+)/);
+                            if (cometMatch) {
+                                const cometIndex = parseInt(cometMatch[1]);
+                                if (cometIndex >= 1 && cometIndex <= 8) {
+                                    const startThreshold = (cometIndex - 1) * 0.1;
+                                    targetValue = Math.max(0.0, Math.min(1.0, (p - startThreshold) / 0.1));
+                                }
                             }
 
                             mesh.morphTargetInfluences[idx] = targetValue;

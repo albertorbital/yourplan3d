@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import styles from './WorldQuiz.module.css';
 import { Planet3D, Planet3DHandle } from './Planet3D';
 import { useProgress } from '@react-three/drei';
@@ -80,13 +80,21 @@ const artifactOptions = [
 
 
 export default function WorldQuiz() {
-    const [view, setView] = useState<'traitSelection' | 'traitSummary' | 'quiz' | 'email' | 'artifact' | 'success'>('traitSelection');
+    const [view, setView] = useState<'traitSelection' | 'traitSummary' | 'quiz' | 'email' | 'artifact' | 'success'>('traitSummary');
     const [isQuizReady, setIsQuizReady] = useState(false);
+    const [showInitialLoader, setShowInitialLoader] = useState(false);
+    const [loaderProgress, setLoaderProgress] = useState(0);
 
     // Trait Selection State
     const [assignmentStep, setAssignmentStep] = useState(0);
-    const [assignments, setAssignments] = useState<Record<string, string>>({}); // Trait -> ElementID
-    const [tempSelection, setTempSelection] = useState<string | null>(null);
+    const [assignments, setAssignments] = useState<Record<string, string>>({
+        'Agreeableness': 'Q1',
+        'Extraversion': 'Q2',
+        'Conscientiousness': 'Q3',
+        'Openness': 'Q4',
+        'Neuroticism': 'Q5'
+    }); // Trait -> ElementID
+    const [tempSelection, setTempSelection] = useState<string | null>('Q1');
 
     // Quiz State
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -100,6 +108,18 @@ export default function WorldQuiz() {
     const [email, setEmail] = useState('');
     const [userName, setUserName] = useState('');
     const [userAge, setUserAge] = useState('');
+
+    // Instruction Text State (Fading)
+    const [showSelectionInstruction, setShowSelectionInstruction] = useState(true);
+    const instructionTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const resetInstructionTimer = () => {
+        setShowSelectionInstruction(false);
+        if (instructionTimerRef.current) clearTimeout(instructionTimerRef.current);
+        instructionTimerRef.current = setTimeout(() => {
+            setShowSelectionInstruction(true);
+        }, 4000); // 4 seconds of inactivity to show again
+    };
     const [selectedArtifact, setSelectedArtifact] = useState<string | null>(artifactOptions[0].id);
     const [submitting, setSubmitting] = useState(false);
     const planet3DRef = useRef<Planet3DHandle>(null);
@@ -113,7 +133,15 @@ export default function WorldQuiz() {
         'Q1': 50, 'Q2': 50, 'Q3': 50, 'Q4': 50, 'Q5': 50
     });
     const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-    const [orderedTraits, setOrderedTraits] = useState<string[]>([]);
+    const [orderedTraits, setOrderedTraits] = useState<string[]>([
+        'Agreeableness',
+        'Extraversion',
+        'Conscientiousness',
+        'Openness',
+        'Neuroticism'
+    ]);
+    const [planetLoading, setPlanetLoading] = useState(false);
+    const [planetProgress, setPlanetProgress] = useState(0);
 
     // Assignment Logic
     const currentTrait = traitsToAssign[assignmentStep];
@@ -121,30 +149,43 @@ export default function WorldQuiz() {
 
     const handleElementSelect = (elementId: string) => {
         if (isElementAssigned(elementId)) return;
-        // Toggle selection: if already selected, deselect; otherwise, select.
-        setTempSelection(prev => prev === elementId ? null : elementId);
+        setTempSelection(elementId); // Always select, never unselect
+        resetInstructionTimer();
     };
 
     const handleTraitNext = () => {
         if (!tempSelection) return;
 
+        resetInstructionTimer();
         const newAssignments = { ...assignments, [currentTrait]: tempSelection };
         setAssignments(newAssignments);
-        setTempSelection(null);
+
+        // Auto-select next element for the next step
+        const nextStep = assignmentStep + 1;
+        if (nextStep < traitsToAssign.length) {
+            setTempSelection(`Q${nextStep + 1}`);
+        } else {
+            setTempSelection(null);
+        }
 
         if (assignmentStep < traitsToAssign.length - 1) {
             setAssignmentStep(assignmentStep + 1);
         } else {
             // Find the last element and assign it to Neuroticism
-            const assignedElements = Object.values(newAssignments);
-            const remainingElement = elementOptions.find(opt => !assignedElements.includes(opt.id))!;
+            // Filter newAssignments to only include the 4 primary traits currently being assigned
+            const primaryAssignedElements = Object.entries(newAssignments)
+                .filter(([trait]) => traitsToAssign.includes(trait))
+                .map(([_, elementId]) => elementId);
+
+            const remainingElement = elementOptions.find(opt => !primaryAssignedElements.includes(opt.id))!;
             const finalAssignments = { ...newAssignments, 'Neuroticism': remainingElement.id };
             setAssignments(finalAssignments);
 
             // Initialize orderedTraits based on element order Q1, Q2, Q3, Q4, Q5
-            const traitOrder = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map(id =>
-                Object.entries(finalAssignments).find(([_, eid]) => eid === id)![0]
-            );
+            const traitOrder = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map(id => {
+                const match = Object.entries(finalAssignments).find(([_, eid]) => eid === id);
+                return match ? match[0] : 'Neuroticism'; // Fallback to Neuroticism if not found (shouldn't happen with correct remainingElement logic)
+            });
             setOrderedTraits(traitOrder);
             setView('traitSummary');
         }
@@ -152,6 +193,7 @@ export default function WorldQuiz() {
 
     const handleTraitBack = () => {
         if (assignmentStep > 0) {
+            resetInstructionTimer();
             const prevTrait = traitsToAssign[assignmentStep - 1];
             const prevElement = assignments[prevTrait];
 
@@ -163,6 +205,26 @@ export default function WorldQuiz() {
             setAssignmentStep(assignmentStep - 1);
             setTempSelection(prevElement); // Highlight the one they had selected
         }
+    };
+
+    const handleDecideForMe = () => {
+        resetInstructionTimer();
+        const autoAssignments = {
+            'Agreeableness': 'Q1',
+            'Extraversion': 'Q2',
+            'Conscientiousness': 'Q3',
+            'Openness': 'Q4',
+            'Neuroticism': 'Q5'
+        };
+        setAssignments(autoAssignments);
+        setTempSelection(null);
+
+        // Map Q1-Q5 to traits using the same pattern as handleTraitNext
+        const traitOrder = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map(id =>
+            Object.entries(autoAssignments).find(([_, eid]) => eid === id)![0]
+        );
+        setOrderedTraits(traitOrder);
+        setView('traitSummary');
     };
 
     // Quiz Generation based on assignments
@@ -179,7 +241,7 @@ export default function WorldQuiz() {
 
         elementOrder.forEach(elementId => {
             const trait = Object.entries(assignments).find(([_, eid]) => eid === elementId)?.[0];
-            if (trait) {
+            if (trait && grouped[trait]) {
                 // Take only the first 3 statements for each trait
                 const statements = grouped[trait].slice(0, 3);
                 const element = elementOptions.find(opt => opt.id === elementId)!;
@@ -565,6 +627,24 @@ export default function WorldQuiz() {
             finalAssignments[trait] = `Q${index + 1}`;
         });
         setAssignments(finalAssignments);
+
+        // Start 10 second loader
+        setPlanetLoading(true);
+        setPlanetProgress(0);
+        const startTime = Date.now();
+        const duration = 10000;
+
+        const interval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(100, Math.floor((elapsed / duration) * 100));
+            setPlanetProgress(progress);
+
+            if (elapsed >= duration) {
+                clearInterval(interval);
+                setPlanetLoading(false);
+            }
+        }, 16); // Increased frequency for 60fps smoothness
+
         setView('quiz');
         // Anchor to the quiz section instead of document top to avoid showing Hero again
         const quizEl = document.getElementById('quiz');
@@ -661,18 +741,24 @@ export default function WorldQuiz() {
 
         return (
             <div className={styles.traitSelectionContainer}>
-                <h2 className={styles.traitTitle}>What elements best represents for you...</h2>
+                <h2 className={styles.traitTitle}>Choose the elements that best represents how you imagine...</h2>
                 <h3 className={styles.traitSubtitle} key={`sub-${assignmentStep}`}>{currentTrait}</h3>
 
                 <div className={styles.previewGrid} key={`grid-${assignmentStep}`}>
                     {selectedElement ? (
                         <>
                             <div className={styles.previewImageWrapper}>
-                                <span className={styles.lowHighLabel}>&nbsp;Low&nbsp;</span>
+                                <div className={styles.lowHighLabelContainer}>
+                                    <Image src={getAssetPath('/1_Quiz Planet Images/minus.png')} alt="" width={16} height={16} className={styles.logicIcon} />
+                                    <span className={styles.lowHighLabel}>&nbsp;Low&nbsp;</span>
+                                </div>
                                 <Image src={getAssetPath(selectedElement.low)} alt="Low" width={250} height={250} className={styles.previewImage} />
                             </div>
                             <div className={styles.previewImageWrapper}>
-                                <span className={styles.lowHighLabel}>&nbsp;High&nbsp;</span>
+                                <div className={styles.lowHighLabelContainer}>
+                                    <span className={styles.lowHighLabel}>&nbsp;High&nbsp;</span>
+                                    <Image src={getAssetPath('/1_Quiz Planet Images/plus.png')} alt="" width={16} height={16} className={styles.logicIcon} />
+                                </div>
                                 <Image src={getAssetPath(selectedElement.high)} alt="High" width={250} height={250} className={styles.previewImage} />
                             </div>
                             <div className={styles.elementGroupTextContainer}>
@@ -682,19 +768,23 @@ export default function WorldQuiz() {
                     ) : (
                         <>
                             <div className={styles.previewImageWrapper}>
-                                <span className={styles.lowHighLabel}>&nbsp;Low&nbsp;</span>
+                                <div className={styles.lowHighLabelContainer}>
+                                    <Image src={getAssetPath('/1_Quiz Planet Images/minus.png')} alt="" width={16} height={16} className={styles.logicIcon} />
+                                    <span className={styles.lowHighLabel}>&nbsp;Low&nbsp;</span>
+                                </div>
                                 <Image src={getAssetPath('/1_Quiz Planet Images/empty_space_planet.png')} alt="Empty" width={250} height={250} className={styles.previewImage} />
                             </div>
                             <div className={styles.previewImageWrapper}>
-                                <span className={styles.lowHighLabel}>&nbsp;High&nbsp;</span>
+                                <div className={styles.lowHighLabelContainer}>
+                                    <span className={styles.lowHighLabel}>&nbsp;High&nbsp;</span>
+                                    <Image src={getAssetPath('/1_Quiz Planet Images/plus.png')} alt="" width={16} height={16} className={styles.logicIcon} />
+                                </div>
                                 <Image src={getAssetPath('/1_Quiz Planet Images/empty_space_planet.png')} alt="Empty" width={250} height={250} className={styles.previewImage} />
                             </div>
-                            <p className={styles.placeholderText}>
-                                Assign a low and a high planet shape to this personality trait
-                            </p>
                         </>
                     )}
                 </div>
+
 
                 <div className={styles.selectionArea}>
                     <div className={styles.selectionTextContainer}>
@@ -721,20 +811,22 @@ export default function WorldQuiz() {
                     </div>
                 </div>
 
-                <div className={styles.navigationButtons}>
-                    <button
-                        className={`${styles.navActionBtn} ${styles.backBtn}`}
-                        onClick={handleTraitBack}
-                        disabled={assignmentStep === 0}
-                    >
-                        Back
-                    </button>
+                <div className={styles.centeredNavContainer}>
                     <button
                         className={`${styles.navActionBtn} ${styles.nextBtn}`}
                         onClick={handleTraitNext}
                         disabled={!tempSelection}
                     >
-                        Next
+                        Confirm
+                    </button>
+                </div>
+
+                <div className={styles.skipButtonContainer}>
+                    <button
+                        className={styles.decideSkipBtn}
+                        onClick={handleDecideForMe}
+                    >
+                        DECIDE FOR ME AND SKIP
                     </button>
                 </div>
             </div>
@@ -743,61 +835,138 @@ export default function WorldQuiz() {
 
     // Render Summary View
     const renderTraitSummary = () => {
-        const handleDragStart = (e: React.DragEvent, index: number) => {
-            setDraggingIndex(index);
-        };
+        const traitPool = ['Agreeableness', 'Extraversion', 'Conscientiousness', 'Openness', 'Neuroticism'];
 
-        const handleDragOver = (e: React.DragEvent, index: number) => {
-            e.preventDefault();
-            if (draggingIndex === null || draggingIndex === index) return;
+        const handleTraitSwap = (elementId: string, newTrait: string) => {
+            const currentIdx = parseInt(elementId.replace('Q', '')) - 1;
+            const oldTrait = orderedTraits[currentIdx];
+            if (oldTrait === newTrait) return;
 
+            const targetIdx = orderedTraits.indexOf(newTrait);
             const newOrderedTraits = [...orderedTraits];
-            const draggedTrait = newOrderedTraits[draggingIndex];
-            newOrderedTraits.splice(draggingIndex, 1);
-            newOrderedTraits.splice(index, 0, draggedTrait);
+
+            // Swap traits in the ordered array
+            newOrderedTraits[targetIdx] = oldTrait;
+            newOrderedTraits[currentIdx] = newTrait;
 
             setOrderedTraits(newOrderedTraits);
-            setDraggingIndex(index);
-        };
 
-        const handleDragEnd = () => {
-            setDraggingIndex(null);
+            // Sync with assignments record
+            setAssignments(prev => {
+                const next = { ...prev };
+                next[newTrait] = elementId;
+                next[oldTrait] = `Q${targetIdx + 1}`;
+                return next;
+            });
         };
 
         return (
             <div className={styles.summaryContainer}>
-                <h2 className={styles.summaryTitle}>Ready to begin shaping your planet</h2>
+                <h2 className={styles.summaryTitle}>Choose the personality traits that best represent this elements:</h2>
                 <div className={styles.summaryList}>
-                    {orderedTraits.map((trait, index) => {
-                        const elementId = `Q${index + 1}`;
+                    {['Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map((elementId, index) => {
                         const element = elementOptions.find(e => e.id === elementId)!;
+                        const assignedTrait = orderedTraits[index];
+
                         return (
-                            <div
-                                key={trait}
-                                className={`${styles.summaryRow} ${draggingIndex === index ? styles.summaryRowDragging : ''}`}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
-                                onDragOver={(e) => handleDragOver(e, index)}
-                                onDragEnd={handleDragEnd}
-                            >
-                                <div className={styles.summaryIconWrapper}>
-                                    <Image src={getAssetPath(element.icon)} alt={element.title} width={60} height={60} className={styles.summaryIcon} />
+                            <div key={elementId} className={styles.summaryRow}>
+                                <span className={styles.summaryElementName}>{element.title}</span>
+                                <div className={styles.summaryRowControls}>
+                                    <div className={styles.summaryIconWrapper}>
+                                        <Image
+                                            src={getAssetPath(element.icon)}
+                                            alt={element.title}
+                                            width={120}
+                                            height={120}
+                                            className={styles.summaryIcon}
+                                        />
+                                    </div>
+                                    <div className={styles.traitSelectorWrapper}>
+                                        <select
+                                            className={styles.traitDropdown}
+                                            value={assignedTrait}
+                                            onChange={(e) => handleTraitSwap(elementId, e.target.value)}
+                                        >
+                                            {traitPool.map(t => (
+                                                <option key={t} value={t}>{t}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
-                                <span className={styles.summaryTraitName}>{trait}</span>
-                                <div className={styles.dragHandle}>☰</div>
                             </div>
                         );
                     })}
                 </div>
                 <button className={styles.continueBtn} onClick={handleStartQuiz}>
-                    Start Quiz
+                    Confirm
                 </button>
+            </div>
+        );
+    };
+
+    const renderInitialLoader = () => {
+        // SVG circle properties
+        const radius = 60;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (loaderProgress / 100) * circumference;
+
+        return (
+            <div className={styles.initialLoaderOverlay}>
+                <div className={styles.loaderContent}>
+                    <svg className={styles.circularLoader} width="160" height="160">
+                        <circle
+                            className={styles.loaderTrack}
+                            cx="80"
+                            cy="80"
+                            r={radius}
+                        />
+                        <circle
+                            className={styles.loaderProgress}
+                            cx="80"
+                            cy="80"
+                            r={radius}
+                            style={{ strokeDasharray: circumference, strokeDashoffset: offset }}
+                        />
+                    </svg>
+                    <div className={styles.loaderPercentage}>{loaderProgress}%</div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderPlanetLoader = () => {
+        const radius = 60;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (planetProgress / 100) * circumference;
+
+        return (
+            <div className={styles.planetLoaderOverlay}>
+                <div className={styles.loaderContent}>
+                    <svg className={styles.circularLoader} width="160" height="160">
+                        <circle
+                            className={styles.loaderTrack}
+                            cx="80"
+                            cy="80"
+                            r={radius}
+                        />
+                        <circle
+                            className={styles.loaderProgress}
+                            cx="80"
+                            cy="80"
+                            r={radius}
+                            style={{ strokeDasharray: circumference, strokeDashoffset: offset }}
+                        />
+                    </svg>
+                    <div className={styles.loaderPercentage}>{planetProgress}%</div>
+                </div>
             </div>
         );
     };
 
     return (
         <section className={styles.quizSection} id="quiz">
+            {showInitialLoader && renderInitialLoader()}
+            {planetLoading && renderPlanetLoader()}
             <div className={styles.container}>
                 {/* Global Planet Visual: Visible during quiz (normal) and email/artifact (blurred) */}
                 {(view === 'quiz' || view === 'email' || view === 'artifact') && (
@@ -811,13 +980,15 @@ export default function WorldQuiz() {
                     >
                         <div className={styles.planetVisual}>
                             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                                <Planet3D
-                                    ref={planet3DRef}
-                                    values={elementOptions.map(opt => elementValues[opt.id])}
-                                    currentSection={(view === 'email' || view === 'artifact') ? 4 : (currentQuestion ? elementOptions.findIndex(e => e.id === currentQuestion.element.id) : -1)}
-                                    tintColor={tintInfo.color}
-                                    tintOpacity={tintInfo.opacity}
-                                />
+                                <Suspense fallback={<div className={styles.planetLoaderPlaceholder}>Establishing Connection...</div>}>
+                                    <Planet3D
+                                        ref={planet3DRef}
+                                        values={elementOptions.map(opt => elementValues[opt.id])}
+                                        currentSection={(view === 'email' || view === 'artifact') ? 4 : (currentQuestion ? elementOptions.findIndex(e => e.id === currentQuestion.element.id) : -1)}
+                                        tintColor={tintInfo.color}
+                                        tintOpacity={tintInfo.opacity}
+                                    />
+                                </Suspense>
                             </div>
                         </div>
 
@@ -844,7 +1015,7 @@ export default function WorldQuiz() {
                         </div>
                         {showIdleOverlay && isQuizReady && (
                             <div className={styles.instructionOverlay}>
-                                Tap from left to right depending on how little or how much the phrase represents you.
+                                Choose how little <Image src={getAssetPath('/1_Quiz Planet Images/minus.png')} alt="" width={16} height={16} className={styles.instructionIcon} /> or how much <Image src={getAssetPath('/1_Quiz Planet Images/plus.png')} alt="" width={16} height={16} className={styles.instructionIcon} /> the sentence represents you.
                             </div>
                         )}
                         <h2
@@ -917,10 +1088,7 @@ export default function WorldQuiz() {
                 {view === 'email' && (
                     <div className={styles.emailForm}>
                         <div className={styles.emailHeader}>
-                            <h2 className={styles.questionTitle}>Save your planet!</h2>
-                            <p className={styles.emailSubtext} style={{ whiteSpace: 'pre-line' }}>
-                                We’ll let you know{'\n'}when it’s ready!
-                            </p>
+                            <h2 className={styles.questionTitle}>We’ll let you know when it’s ready!</h2>
                         </div>
 
                         <div className={styles.emailBottom}>
