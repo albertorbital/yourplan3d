@@ -30,12 +30,12 @@ type GlowColors = {
     high: string;
 };
 
-const traitColors: Record<string, GlowColors> = {
-    'Agreeableness': { low: '#EF4444', high: '#3B82F6' }, // Volcano vs Ocean vibes
-    'Extraversion': { low: '#D9851E', high: '#22C55E' }, // Desert vs Forest vibes
-    'Conscientiousness': { low: '#C084FC', high: '#D9851E' }, // Empty vs Rings vibes
-    'Neuroticism': { low: '#0ea5e9', high: '#38bdf8' }, // Comets vibes
-    'Openness': { low: '#94A3B8', high: '#FFFFFF' }, // Clouds vibes
+const elementColors: Record<string, GlowColors> = {
+    'Q1': { low: '#FF4444', high: '#3B82F6' }, // Redish -> Blue
+    'Q2': { low: '#B45309', high: '#16A34A' }, // Ocre -> Green
+    'Q3': { low: '#A855F7', high: '#FACC15' }, // Purple -> Yellow
+    'Q4': { low: '#3B82F6', high: '#22D3EE' }, // Blue -> Cyan
+    'Q5': { low: '#FDE047', high: '#FFFFFF' }, // Yellow -> White
 };
 
 const interpolateColor = (color1: string, color2: string, factor: number) => {
@@ -78,34 +78,10 @@ const artifactOptions = [
     { id: 'artifact_6', label: 'Bracelet', format: 'Bracelet', image: getAssetPath('/artifact/Format_6.png'), priceTiers: [15, 25, 35], subtitle: 'Get a 20% off!' },
 ];
 
-const PlanetLoader = () => {
-    const { progress, active } = useProgress();
-    if (!active || progress >= 100) return null;
-
-    return (
-        <div className={styles.radialLoaderContainer}>
-            <div className={styles.radialLoader}>
-                <svg viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="45" className={styles.loaderBg} />
-                    <circle
-                        cx="50"
-                        cy="50"
-                        r="45"
-                        className={styles.loaderProgress}
-                        style={{
-                            strokeDasharray: '283',
-                            strokeDashoffset: `${283 - (progress * 2.83)}`
-                        }}
-                    />
-                </svg>
-                <span className={styles.loaderValue}>{Math.round(progress)}%</span>
-            </div>
-        </div>
-    );
-};
 
 export default function WorldQuiz() {
     const [view, setView] = useState<'traitSelection' | 'traitSummary' | 'quiz' | 'email' | 'artifact' | 'success'>('traitSelection');
+    const [isQuizReady, setIsQuizReady] = useState(false);
 
     // Trait Selection State
     const [assignmentStep, setAssignmentStep] = useState(0);
@@ -204,7 +180,8 @@ export default function WorldQuiz() {
         elementOrder.forEach(elementId => {
             const trait = Object.entries(assignments).find(([_, eid]) => eid === elementId)?.[0];
             if (trait) {
-                const statements = grouped[trait];
+                // Take only the first 3 statements for each trait
+                const statements = grouped[trait].slice(0, 3);
                 const element = elementOptions.find(opt => opt.id === elementId)!;
                 statements.forEach(statement => {
                     questions.push({
@@ -220,20 +197,34 @@ export default function WorldQuiz() {
 
     const currentQuestion = quizQuestions[currentQuestionIndex];
 
-    /* Commented out idle timer logic per request
+    // Inactivity Instruction Logic
+    useEffect(() => {
+        if (view === 'quiz') {
+            const timer = setTimeout(() => setIsQuizReady(true), 2000);
+            return () => clearTimeout(timer);
+        } else {
+            setIsQuizReady(false);
+        }
+    }, [view]);
+
     useEffect(() => {
         const resetTimer = () => {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             idleTimerRef.current = setTimeout(() => {
                 setShowIdleOverlay(true);
-            }, 5000);
+            }, 8000); // 8 seconds
         };
+
+        // Show immediately at the beginning of the Quiz or after reset
+        if (view === 'quiz' && !hasInteracted) {
+            setShowIdleOverlay(true);
+        }
+
         resetTimer();
         return () => {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
         };
-    }, [sliderValue, currentQuestionIndex, idleTimerRef]);
-    */
+    }, [sliderValue, currentQuestionIndex, idleTimerRef, view, hasInteracted]);
 
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = Number(e.target.value);
@@ -243,6 +234,7 @@ export default function WorldQuiz() {
     const updateSliderAndPlanet = (value: number) => {
         setSliderValue(value);
         setHasInteracted(true);
+        setShowIdleOverlay(false);
         if (currentQuestion) {
             setElementValues(prev => ({
                 ...prev,
@@ -273,21 +265,35 @@ export default function WorldQuiz() {
     };
 
     const handleQuizButtonClick = (type: 'minusminus' | 'minus' | 'middle' | 'plus' | 'plusplus') => {
+        if (!currentQuestion) return;
+
+        const isStandard = currentQuestion.direction === 'Standard (+)';
         let newValue = sliderValue;
+
         switch (type) {
-            case 'minusminus': newValue = Math.max(0, sliderValue - 15); break;
-            case 'minus': newValue = Math.max(0, sliderValue - 8); break;
+            case 'minusminus':
+                newValue = isStandard ? Math.max(0, sliderValue - 35) : Math.min(100, sliderValue + 35);
+                break;
+            case 'minus':
+                newValue = isStandard ? Math.max(0, sliderValue - 25) : Math.min(100, sliderValue + 25);
+                break;
             case 'middle':
                 {
                     const s = sliderValue;
-                    updateSliderAndPlanet(Math.max(0, s - 1));
+                    const wobbleShift = isStandard ? -1 : 1;
+                    updateSliderAndPlanet(Math.max(0, Math.min(100, s + wobbleShift)));
                     setTimeout(() => updateSliderAndPlanet(s), 100);
                     newValue = s; // Stay at current position
                 }
                 break;
-            case 'plus': newValue = Math.min(100, sliderValue + 8); break;
-            case 'plusplus': newValue = Math.min(100, sliderValue + 15); break;
+            case 'plus':
+                newValue = isStandard ? Math.min(100, sliderValue + 25) : Math.max(0, sliderValue - 25);
+                break;
+            case 'plusplus':
+                newValue = isStandard ? Math.min(100, sliderValue + 35) : Math.max(0, sliderValue - 35);
+                break;
         }
+
         animateSliderTo(newValue);
         // Automatically advance after animation duration (400ms) + small buffer
         setTimeout(() => {
@@ -538,12 +544,12 @@ export default function WorldQuiz() {
                 setCurrentQuestionIndex(nextIndex);
 
                 // If the element changes (new trait group), reset to 50
+                // For 3 questions per trait, element changes every 3 questions
                 const nextQuestion = quizQuestions[nextIndex];
                 if (nextQuestion.element.id !== currentQuestion.element.id) {
                     setSliderValue(50);
                 }
 
-                setHasInteracted(false);
                 setShowIdleOverlay(false);
             } else {
                 setView('email');
@@ -597,9 +603,8 @@ export default function WorldQuiz() {
             traitScores[q.trait] += finalScore;
         });
 
-        // Convert to Percentages (Max 500 per trait)
         const percentages = Object.entries(traitScores).reduce((acc, [trait, score]) => {
-            acc[trait] = Math.round(score / 5);
+            acc[trait] = Math.round(score / 3); // Updated from /5 to /3 for 3 questions per trait
             return acc;
         }, {} as Record<string, number>);
 
@@ -633,13 +638,13 @@ export default function WorldQuiz() {
     // 3D Preview interpolation
     const currentGlowColor = useMemo(() => {
         if (!currentQuestion) return '#ffffff';
-        const colors = traitColors[currentQuestion.trait];
+        const colors = elementColors[currentQuestion.element.id];
         return interpolateColor(colors.low, colors.high, sliderValue / 100);
     }, [currentQuestion, sliderValue]);
 
     const tintInfo = useMemo(() => {
         if (!currentQuestion) return { color: 'transparent', opacity: 0 };
-        const colors = traitColors[currentQuestion.trait];
+        const colors = elementColors[currentQuestion.element.id];
         const delta = Math.abs(sliderValue - 50);
         let opacity = 0;
         if (delta > 5) opacity = (delta / 25) * 0.3;
@@ -804,7 +809,6 @@ export default function WorldQuiz() {
                         `}
                         style={{ '--glow-color': currentGlowColor } as React.CSSProperties}
                     >
-                        <PlanetLoader />
                         <div className={styles.planetVisual}>
                             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                                 <Planet3D
@@ -830,15 +834,7 @@ export default function WorldQuiz() {
 
                 {view === 'quiz' && (
                     <>
-                        <button
-                            onClick={handleDownloadSTL}
-                            className={styles.quizDownloadBtn}
-                            aria-label="Download STL"
-                            title="Download 3D Model (.STL)"
-                        >
-                            <Download size={24} />
-                        </button>
-                        <div className={styles.progressContainer}>
+                        <div className={`${styles.progressContainer} ${isQuizReady ? styles.quizFadeIn : ''}`} style={{ opacity: isQuizReady ? 1 : 0 }}>
                             {quizQuestions.map((_, index) => (
                                 <div
                                     key={index}
@@ -846,14 +842,20 @@ export default function WorldQuiz() {
                                 />
                             ))}
                         </div>
+                        {showIdleOverlay && isQuizReady && (
+                            <div className={styles.instructionOverlay}>
+                                Tap from left to right depending on how little or how much the phrase represents you.
+                            </div>
+                        )}
                         <h2
-                            className={`${styles.questionTitle} ${isTitleFading ? styles.questionTitleFading : ''}`}
+                            className={`${styles.questionTitle} ${isTitleFading ? styles.questionTitleFading : ''} ${isQuizReady ? styles.quizFadeIn : ''}`}
                             style={{
                                 fontSize: (currentQuestion?.statement?.length || 0) > 80 ? '1.2rem' : '1.5rem',
-                                transition: 'opacity 0.4s ease'
+                                transition: 'opacity 0.4s ease',
+                                opacity: isQuizReady ? 1 : 0
                             }}
                         >
-                            {currentQuestion?.statement}
+                            {currentQuestion.statement}
                         </h2>
 
                         <div
@@ -864,13 +866,7 @@ export default function WorldQuiz() {
                         </div>
 
                         <div className={styles.overlayContainer}>
-                            {showIdleOverlay && (
-                                <div className={styles.idleOverlay}>
-                                    <ArrowLeft className={`${styles.arrowIcon} ${styles.arrowLeft}`} />
-                                    <span className={styles.idleText}>Drag to start</span>
-                                    <ArrowRight className={`${styles.arrowIcon} ${styles.arrowRight}`} />
-                                </div>
-                            )}
+                            {/* Drag to start overlay removed as per user request */}
                         </div>
 
                         <div className={styles.quizInstructionsContainer} style={{ opacity: 0, height: 0, overflow: 'hidden' }}>
@@ -896,7 +892,7 @@ export default function WorldQuiz() {
                             </div>
                         </div>
 
-                        <div className={styles.quizControlsContainer}>
+                        <div className={`${styles.quizControlsContainer} ${isQuizReady ? styles.quizFadeIn : ''}`} style={{ opacity: isQuizReady ? 1 : 0 }}>
                             <div className={styles.quizButtonGroup}>
                                 <button className={styles.quizControlBtn} onClick={() => handleQuizButtonClick('minusminus')} aria-label="Large Decrease">
                                     <Image src={getAssetPath('/1_Quiz Planet Images/minusminus.png')} alt="--" width={60} height={60} />

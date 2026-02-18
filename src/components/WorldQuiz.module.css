@@ -615,6 +615,27 @@
     transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 5;
     order: 3;
+    position: relative;
+}
+
+.globalPlanetContainer::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(80vw, 500px);
+    /* Moderated size */
+    height: min(80vw, 500px);
+    background: radial-gradient(circle, var(--glow-color, rgba(99, 102, 241, 0.4)) 0%, transparent 75%);
+    /* Moderated spread */
+    opacity: 0.6;
+    /* Moderated opacity */
+    filter: blur(40px);
+    /* Moderated blur radius */
+    z-index: -1;
+    pointer-events: none;
+    transition: background 1s ease;
 }
 
 .globalPlanetHidden {
@@ -697,35 +718,6 @@
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
-.quizDownloadBtn {
-    position: absolute;
-    top: 2rem;
-    right: 2rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.6);
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    z-index: 100;
-}
-
-.quizDownloadBtn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.3);
-    color: white;
-    transform: scale(1.05);
-}
-
-.quizDownloadBtn svg {
-    width: 20px;
-    height: 20px;
-}
 
 .secondaryDownloadBtn svg {
     opacity: 0.7;
@@ -1763,56 +1755,6 @@
     }
 }
 
-/* Radial Loader */
-.radialLoaderContainer {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 200px;
-    height: 200px;
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    border-radius: 50%;
-}
-
-.radialLoader {
-    position: relative;
-    width: 120px;
-    height: 120px;
-}
-
-.radialLoader svg {
-    transform: rotate(-90deg);
-}
-
-.loaderBg {
-    fill: none;
-    stroke: rgba(255, 255, 255, 0.1);
-    stroke-width: 8;
-}
-
-.loaderProgress {
-    fill: none;
-    stroke: #6366f1;
-    stroke-width: 8;
-    stroke-linecap: round;
-    transition: stroke-dashoffset 0.1s linear;
-}
-
-.loaderValue {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: white;
-}
 
 .downloadSTLBtn {
     background: rgba(255, 255, 255, 0.05);
@@ -1833,4 +1775,62 @@
 .downloadSTLBtn:hover {
     background: rgba(255, 255, 255, 0.15);
     transform: translateY(-2px);
+}
+
+.instructionOverlay {
+    position: absolute;
+    bottom: 110px;
+    /* Positioned just above the quiz buttons */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.4rem;
+    font-weight: 500;
+    font-style: italic;
+    z-index: 200;
+    pointer-events: none;
+    animation: instructionPulse 4s infinite ease-in-out;
+    line-height: 1.4;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+@media (orientation: portrait) {
+    .instructionOverlay {
+        font-size: 1.1rem;
+        max-width: 320px;
+        bottom: 100px;
+    }
+}
+
+.quizFadeIn {
+    animation: fadeInContent 1.2s ease forwards;
+}
+
+@keyframes fadeInContent {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes instructionPulse {
+
+    0%,
+    100% {
+        opacity: 0.1;
+        transform: translate(-50%, 0);
+    }
+
+    50% {
+        opacity: 0.6;
+        transform: translate(-50%, -5px);
+    }
 }

@@ -134,7 +134,7 @@
     {
         "id": "O3",
         "trait": "Openness",
-        "statement": "I spend a lot of time thinking about deep or abstract \"what if\" ideas.",
+        "statement": "I love thinking about deep or abstract \"what if\" ideas.",
         "direction": "Standard (+)"
     },
     {
@@ -146,7 +146,7 @@
     {
         "id": "O5",
         "trait": "Openness",
-        "statement": "I love finding music that sounds completely different from the Top 40.",
+        "statement": "I love finding music that sounds completely different",
         "direction": "Standard (+)"
     }
 ]

@@ -1591,12 +1591,12 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                     speed={1.0}
                 />
 
-                {/* Wind appears when Forest slider < 50% */}
-                <WindParticles
+                {/* Wind appears when Forest slider < 50% - Removed per user request */}
+                {/* <WindParticles
                     intensity={(values[1] < 50) ? (50 - values[1]) / 50 : 0}
                     radius={4.5}
                     speed={1.0}
-                />
+                /> */}
             </group>
         </group>
     );
