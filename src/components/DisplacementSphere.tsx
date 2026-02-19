@@ -7,6 +7,7 @@ import { getAssetPath } from '@/utils/paths';
 
 // Preload to avoid waterfalls
 useGLTF.preload(getAssetPath('/models/forest.glb'));
+useGLTF.preload(getAssetPath('/models/comet_single.glb'));
 
 // --- SHADER HELPERS ---
 const noisePars = `
@@ -552,7 +553,7 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     tintOpacity
 }) => {
     const base = useFBX(getAssetPath('/models/base.fbx'));
-    const comets = useFBX(getAssetPath('/models/Comets.fbx'));
+    const { scene: cometTemplateScene } = useGLTF(getAssetPath('/models/comet_single.glb'));
     // FOREST GLTF (Keep loading it to avoid errors, but don't use it yet)
     useGLTF.preload(getAssetPath('/models/forest.glb'));
     const forestGLTF = useGLTF(getAssetPath('/models/forest.glb'));
@@ -678,7 +679,7 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 depthTest: true,
                 depthWrite: true
             }),
-            comet: new THREE.ShaderMaterial({
+            Comet_optimized_1: new THREE.ShaderMaterial({
                 uniforms: {
                     uTime: { value: 0 }
                 },
@@ -695,6 +696,70 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                     }
                 `,
                 fragmentShader: cometFragmentShader,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthTest: true,
+                depthWrite: true,
+                // @ts-ignore
+                morphTargets: true
+            }),
+            Comet_optimized_2: new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uMagmaTex: { value: magmaTex }
+                },
+                vertexShader: `
+                    #include <morphtarget_pars_vertex>
+                    varying vec2 vUv;
+                    varying vec3 vPos;
+                    void main() {
+                        vUv = uv;
+                        #include <begin_vertex>
+                        #include <morphtarget_vertex>
+                        #include <project_vertex>
+                        vPos = transformed;
+                    }
+                `,
+                fragmentShader: `
+                    precision highp float;
+                    uniform float uTime;
+                    varying vec2 vUv;
+                    varying vec3 vPos;
+                    
+                    ${noisePars}
+                    
+                    void main() {
+                        // Large Scale Texture (Lower Tiling for zoom effect)
+                        vec2 tiledUv = vUv * 3.0; 
+                        
+                        // Broader volcan-style ridges for smoother rivers
+                        float noiseFlow = snoise(vec3(tiledUv * 1.0, uTime * 0.15));
+                        float ridges = 1.0 - abs(noiseFlow); 
+                        float river = smoothstep(0.7, 0.9, ridges);
+                        
+                        // Rocky logic: adjusted frequency for larger scale
+                        float rockyNoise = snoise(vec3(tiledUv * 3.0, uTime * 0.05)) * 0.5 + 0.5;
+                        rockyNoise = pow(rockyNoise, 2.5); 
+                        
+                        // Pulse logic
+                        float pulseN = snoise(vPos * 0.3 + vec3(uTime * 1.5)) * 0.5 + 0.5;
+                        
+                        // Vibrant Orange/Gold Palette
+                        vec3 crustOrange = vec3(0.65, 0.2, 0.0) * (0.3 + 0.7 * rockyNoise);
+                        vec3 vibrantOrange = vec3(1.8, 0.45, 0.0); // Hot orange
+                        vec3 goldenOrange = vec3(2.5, 1.5, 0.1);  // Emissive gold/orange
+                        
+                        vec3 magmaMix = mix(crustOrange, vibrantOrange, river);
+                        magmaMix = mix(magmaMix, goldenOrange, smoothstep(0.85, 1.0, ridges) * pulseN);
+                        
+                        // Final Intensity Boost
+                        magmaMix *= (1.0 + river * 0.8); 
+                        
+                        // Breathing glow
+                        float breathing = 0.9 + 0.1 * sin(uTime * 3.0 + vUv.x * 20.0);
+                        gl_FragColor = vec4(magmaMix * breathing, 1.0);
+                    }
+                `,
                 transparent: true,
                 side: THREE.DoubleSide,
                 depthTest: true,
@@ -731,6 +796,54 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
     const forestMesh = useMemo(() => {
         return forestGLTF.scene.clone();
     }, [forestGLTF]);
+
+    const cometInstances = useMemo(() => {
+        const templates: THREE.Mesh[] = [];
+        cometTemplateScene.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                templates.push(child as THREE.Mesh);
+            }
+        });
+
+        // Error handling if meshes not found
+        if (templates.length === 0) return [];
+
+        const instances: THREE.Mesh[] = [];
+        const count = 8;
+        const radius = 220; // Maintain FBX-relative distance
+
+        for (let i = 0; i < count; i++) {
+            // Pick one of the 2 meshes from the GLB
+            const template = templates[i % templates.length];
+            const mesh = template.clone();
+
+            // Random distribution around the sphere
+            const theta = Math.acos((Math.random() * 2) - 1);
+            const phi = Math.random() * Math.PI * 2;
+
+            mesh.position.set(
+                radius * Math.sin(theta) * Math.cos(phi),
+                radius * Math.sin(theta) * Math.sin(phi),
+                radius * Math.cos(theta)
+            );
+
+            // Make them look at center
+            mesh.lookAt(0, 0, 0);
+
+            // Name them for sequential reveal logic
+            mesh.name = `OpenToExp_${i + 1}`;
+
+            instances.push(mesh);
+        }
+        return instances;
+    }, [cometTemplateScene]);
+
+    useEffect(() => {
+        if (cometRef.current) {
+            cometRef.current.clear();
+            cometInstances.forEach(inst => cometRef.current?.add(inst));
+        }
+    }, [cometInstances]);
 
     const ringGroup = useMemo(() => {
         const group = ringFBX.clone();
@@ -1436,10 +1549,13 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                     const mesh = child as THREE.Mesh;
                     mesh.visible = cometsVisible;
 
-                    // Assign magma material to comets 6, 7, 8
-                    const isMagmaComet = ['OpenToExp_6', 'OpenToExp_7', 'OpenToExp_8'].includes(mesh.name);
-                    mesh.material = isMagmaComet ? ringMaterials.magma : ringMaterials.comet;
-                    mesh.scale.set(100, 100, 100);
+                    // Assign material distribution: 1-4 Bluish, 5-8 Magma
+                    const cometMatch = mesh.name.match(/OpenToExp_(\d+)/);
+                    if (cometMatch) {
+                        const idxNum = parseInt(cometMatch[1]);
+                        mesh.material = idxNum <= 4 ? ringMaterials.Comet_optimized_1 : ringMaterials.Comet_optimized_2;
+                    }
+                    mesh.scale.set(80, 80, 80);
 
                     // Time animation
                     if (mesh.material && (mesh.material as any).uniforms?.uTime) {
@@ -1574,7 +1690,7 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 <primitive object={ringGroup} ref={ringRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} name="ring_group" />
 
                 {/* Comets */}
-                <primitive object={comets} ref={cometRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} name="comet_group" />
+                <group ref={cometRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} name="comet_group" />
 
                 {/* Clouds */}
                 <primitive object={cloudsFBX} ref={cloudsRef} scale={[0.004, 0.004, 0.004]} position={[0, 0, 0]} name="clouds_group" />
