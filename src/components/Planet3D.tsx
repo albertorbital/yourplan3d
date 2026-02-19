@@ -1,4 +1,4 @@
-import React, { Suspense, forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { Suspense, forwardRef, useImperativeHandle, useRef, memo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { DisplacementSphere } from './DisplacementSphere';
 import { OrbitControls } from '@react-three/drei';
@@ -15,7 +15,7 @@ export interface Planet3DHandle {
     getScene: () => THREE.Scene | null;
 }
 
-export const Planet3D = forwardRef<Planet3DHandle, Planet3DProps>((props, ref) => {
+const Planet3DInner = forwardRef<Planet3DHandle, Planet3DProps>((props, ref) => {
     const sceneRef = useRef<THREE.Scene>(null);
 
     useImperativeHandle(ref, () => ({
@@ -43,4 +43,6 @@ export const Planet3D = forwardRef<Planet3DHandle, Planet3DProps>((props, ref) =
     );
 });
 
-Planet3D.displayName = 'Planet3D';
+Planet3DInner.displayName = 'Planet3D';
+
+export const Planet3D = memo(Planet3DInner);

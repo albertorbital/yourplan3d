@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, memo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useFBX, useGLTF, Environment, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -546,7 +546,7 @@ const WindParticles: React.FC<{ intensity: number, radius?: number, speed?: numb
 
 // --- STYLIZED SHADERS REMOVED DUPLICATES ---
 
-export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
+const DisplacementSphereBase: React.FC<DisplacementSphereProps> = ({
     values,
     currentSection,
     tintColor,
@@ -777,9 +777,7 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
                 transparent: true,
                 side: THREE.DoubleSide,
                 depthTest: true,
-                depthWrite: false,
-                // @ts-ignore
-                morphTargets: true
+                depthWrite: false
             })
         };
     }, [moonTex, martianTex, stripesTex, magmaTex, rockyMarsTex, ring0Tex]);
@@ -838,6 +836,8 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
         return instances;
     }, [cometTemplateScene]);
 
+
+
     useEffect(() => {
         if (cometRef.current) {
             cometRef.current.clear();
@@ -885,6 +885,47 @@ export const DisplacementSphere: React.FC<DisplacementSphereProps> = ({
         const b = base.clone();
         return [b];
     }, [base]);
+
+    // CACHE MESHES FOR PERFORMANCE (Avoid traverses in useFrame)
+    const baseMeshCache = useMemo(() => {
+        const meshes: any[] = [];
+        baseMesh.traverse((child: any) => {
+            if (child.isMesh && child.morphTargetInfluences) {
+                meshes.push(child);
+            }
+        });
+        return meshes;
+    }, [baseMesh]);
+
+    const ringMeshCache = useMemo(() => {
+        const meshes: THREE.Mesh[] = [];
+        ringGroup.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                meshes.push(child as THREE.Mesh);
+            }
+        });
+        return meshes;
+    }, [ringGroup]);
+
+    const cloudMeshCache = useMemo(() => {
+        const meshes: THREE.Mesh[] = [];
+        cloudsFBX.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                meshes.push(child as THREE.Mesh);
+            }
+        });
+        return meshes;
+    }, [cloudsFBX]);
+
+    const cometMeshCache = useMemo(() => {
+        const meshes: THREE.Mesh[] = [];
+        cometInstances.forEach(inst => {
+            inst.traverse(child => {
+                if ((child as THREE.Mesh).isMesh) meshes.push(child as THREE.Mesh);
+            });
+        });
+        return meshes;
+    }, [cometInstances]);
 
     // Removed useEffect for Forest Geometry
 
@@ -1424,35 +1465,33 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
         const activeDesert = (s2_frame < 0.5) ? 1.0 : 0.0;
         const activeForest = (s2_frame > 0.5) ? 1.0 : 0.0;
 
-        // Unified Mesh control
-        baseMesh.traverse((child: any) => {
-            if (child.isMesh && child.morphTargetInfluences) {
-                const dict = child.morphTargetDictionary || {};
-                const indices = new Int32Array(8).fill(-1);
+        // Unified Mesh control using cached references
+        baseMeshCache.forEach((child) => {
+            const dict = child.morphTargetDictionary || {};
+            const indices = new Int32Array(8).fill(-1);
 
-                for (const key in dict) {
-                    const k = key.toLowerCase();
-                    const idx = dict[key];
-                    if (k.includes('ocean')) {
-                        child.morphTargetInfluences[idx] = activeOcean;
-                        if (idx < 8) indices[idx] = 1;
-                    } else if (k.includes('desert')) {
-                        child.morphTargetInfluences[idx] = activeDesert;
-                        if (idx < 8) indices[idx] = 0;
-                    } else if (k.includes('volcan')) {
-                        child.morphTargetInfluences[idx] = activeVolcan;
-                        if (idx < 8) indices[idx] = 2;
-                    } else if (k.includes('forest')) {
-                        child.morphTargetInfluences[idx] = activeForest;
-                        if (idx < 8) indices[idx] = 3;
-                    }
+            for (const key in dict) {
+                const k = key.toLowerCase();
+                const idx = dict[key];
+                if (k.includes('ocean')) {
+                    child.morphTargetInfluences[idx] = activeOcean;
+                    if (idx < 8) indices[idx] = 1;
+                } else if (k.includes('desert')) {
+                    child.morphTargetInfluences[idx] = activeDesert;
+                    if (idx < 8) indices[idx] = 0;
+                } else if (k.includes('volcan')) {
+                    child.morphTargetInfluences[idx] = activeVolcan;
+                    if (idx < 8) indices[idx] = 2;
+                } else if (k.includes('forest')) {
+                    child.morphTargetInfluences[idx] = activeForest;
+                    if (idx < 8) indices[idx] = 3;
                 }
+            }
 
-                // Update Indices for the shader
-                const sh = materialRef.current?.userData?.shader;
-                if (sh && sh.uniforms.uIndices) {
-                    sh.uniforms.uIndices.value = indices;
-                }
+            // Update Indices for the shader
+            const sh = materialRef.current?.userData?.shader;
+            if (sh && sh.uniforms.uIndices) {
+                sh.uniforms.uIndices.value = indices;
             }
         });
     });
@@ -1493,44 +1532,41 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 r3_val = fs > 85 ? Math.min(1.0, (fs - 85) / (100 - 85)) : 0;
             }
 
-            ringRef.current.traverse((child) => {
-                if ((child as any).isMesh) {
-                    const mesh = child as THREE.Mesh;
-                    mesh.visible = ringsVisible;
-                    mesh.frustumCulled = false;
+            ringMeshCache.forEach((mesh) => {
+                mesh.visible = ringsVisible;
+                mesh.frustumCulled = false;
 
-                    const lowerName = mesh.name.toLowerCase();
+                const lowerName = mesh.name.toLowerCase();
 
-                    // 1. Update Time Uniform
-                    if (mesh.material && (mesh.material as any).uniforms && (mesh.material as any).uniforms.uTime) {
-                        (mesh.material as any).uniforms.uTime.value = state.clock.elapsedTime;
-                    }
+                // 1. Update Time Uniform
+                if (mesh.material && (mesh.material as any).uniforms && (mesh.material as any).uniforms.uTime) {
+                    (mesh.material as any).uniforms.uTime.value = state.clock.elapsedTime;
+                }
 
-                    // 2. Assign specific materials and handle scales 
-                    let activeMorph = 0;
-                    if (lowerName === 'ring' || lowerName === 'ring_0') {
-                        mesh.material = ringMaterials.planetary;
-                        mesh.scale.set(100, 100, 100);
-                        activeMorph = r0_val;
-                    } else if (lowerName === 'ring_1') {
-                        mesh.material = ringMaterials.magma;
-                        mesh.scale.set(100, 100, 100);
-                        activeMorph = r1_val;
-                    } else if (lowerName === 'ring_2') {
-                        mesh.material = ringMaterials.moon;
-                        mesh.scale.set(100, 100, 100);
-                        activeMorph = r2_val;
-                    } else if (lowerName === 'ring_3') {
-                        mesh.material = ringMaterials.martian;
-                        mesh.scale.set(100, 100, 100);
-                        activeMorph = r3_val;
-                    }
+                // 2. Assign specific materials and handle scales 
+                let activeMorph = 0;
+                if (lowerName === 'ring' || lowerName === 'ring_0') {
+                    mesh.material = ringMaterials.planetary;
+                    mesh.scale.set(100, 100, 100);
+                    activeMorph = r0_val;
+                } else if (lowerName === 'ring_1') {
+                    mesh.material = ringMaterials.magma;
+                    mesh.scale.set(100, 100, 100);
+                    activeMorph = r1_val;
+                } else if (lowerName === 'ring_2') {
+                    mesh.material = ringMaterials.moon;
+                    mesh.scale.set(100, 100, 100);
+                    activeMorph = r2_val;
+                } else if (lowerName === 'ring_3') {
+                    mesh.material = ringMaterials.martian;
+                    mesh.scale.set(100, 100, 100);
+                    activeMorph = r3_val;
+                }
 
-                    // 3. Dynamic Morph Target Enforcement (high state)
-                    if (mesh.morphTargetInfluences) {
-                        for (let i = 0; i < mesh.morphTargetInfluences.length; i++) {
-                            mesh.morphTargetInfluences[i] = activeMorph;
-                        }
+                // 3. Dynamic Morph Target Enforcement (high state)
+                if (mesh.morphTargetInfluences) {
+                    for (let i = 0; i < mesh.morphTargetInfluences.length; i++) {
+                        mesh.morphTargetInfluences[i] = activeMorph;
                     }
                 }
             });
@@ -1544,45 +1580,39 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
             // Visibility logic: Show comets starting from Q4 and keep them visible
             const cometsVisible = currentSection >= 3;
 
-            cometRef.current.traverse((child) => {
-                if ((child as any).isMesh) {
-                    const mesh = child as THREE.Mesh;
-                    mesh.visible = cometsVisible;
+            cometMeshCache.forEach((mesh) => {
+                mesh.visible = cometsVisible;
 
-                    // Assign material distribution: 1-4 Bluish, 5-8 Magma
-                    const cometMatch = mesh.name.match(/OpenToExp_(\d+)/);
-                    if (cometMatch) {
-                        const idxNum = parseInt(cometMatch[1]);
-                        mesh.material = idxNum <= 4 ? ringMaterials.Comet_optimized_1 : ringMaterials.Comet_optimized_2;
-                    }
-                    mesh.scale.set(80, 80, 80);
+                // Assign material distribution: 1-4 Bluish, 5-8 Magma
+                const cometMatch = mesh.name.match(/OpenToExp_(\d+)/);
+                if (cometMatch) {
+                    const idxNum = parseInt(cometMatch[1]);
+                    mesh.material = idxNum <= 4 ? ringMaterials.Comet_optimized_1 : ringMaterials.Comet_optimized_2;
+                }
+                mesh.scale.set(80, 80, 80);
 
-                    // Time animation
-                    if (mesh.material && (mesh.material as any).uniforms?.uTime) {
-                        (mesh.material as any).uniforms.uTime.value = time;
-                    }
+                // Time animation
+                if (mesh.material && (mesh.material as any).uniforms?.uTime) {
+                    (mesh.material as any).uniforms.uTime.value = time;
+                }
 
-                    // Morph target sequential logic
-                    // For comets, always use the curiosity score (values[3]) once reached or passed Q4
-                    if (mesh.visible && mesh.morphTargetInfluences && mesh.morphTargetDictionary) {
-                        const idx = mesh.morphTargetDictionary['high'];
-                        if (idx !== undefined) {
-                            let targetValue = 0;
-                            const p = values[3] / 100;
+                // Morph target sequential logic
+                if (mesh.visible && mesh.morphTargetInfluences && mesh.morphTargetDictionary) {
+                    const idx = mesh.morphTargetDictionary['high'];
+                    if (idx !== undefined) {
+                        let targetValue = 0;
+                        const p = values[3] / 100;
 
-                            // Sequential reveal logic for 8 comet meshes
-                            // Each mesh has a 10% window (0-10%, 10-20%, etc.)
-                            const cometMatch = mesh.name.match(/OpenToExp_(\d+)/);
-                            if (cometMatch) {
-                                const cometIndex = parseInt(cometMatch[1]);
-                                if (cometIndex >= 1 && cometIndex <= 8) {
-                                    const startThreshold = (cometIndex - 1) * 0.1;
-                                    targetValue = Math.max(0.0, Math.min(1.0, (p - startThreshold) / 0.1));
-                                }
+                        const cometMatchInner = mesh.name.match(/OpenToExp_(\d+)/);
+                        if (cometMatchInner) {
+                            const cometIndex = parseInt(cometMatchInner[1]);
+                            if (cometIndex >= 1 && cometIndex <= 8) {
+                                const startThreshold = (cometIndex - 1) * 0.1;
+                                targetValue = Math.max(0.0, Math.min(1.0, (p - startThreshold) / 0.1));
                             }
-
-                            mesh.morphTargetInfluences[idx] = targetValue;
                         }
+
+                        mesh.morphTargetInfluences[idx] = targetValue;
                     }
                 }
             });
@@ -1711,3 +1741,5 @@ vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
         </group>
     );
 };
+
+export const DisplacementSphere = memo(DisplacementSphereBase);
