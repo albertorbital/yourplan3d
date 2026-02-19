@@ -371,49 +371,117 @@ export default function WorldQuiz() {
         scene.updateMatrixWorld(true);
 
         // --- Simplex Noise Port (GLSL -> JS) ---
-        const mod289 = (x: number) => x - Math.floor(x * (1.0 / 289.0)) * 289.0;
-        const permute = (x: number) => mod289(((x * 34.0) + 1.0) * x);
-        const taylorInvSqrt = (x: number) => 1.79284291400159 - 0.85373472095314 * x;
+        const mod289_vec3 = (v: THREE.Vector3) => {
+            return new THREE.Vector3(
+                v.x - Math.floor(v.x * (1.0 / 289.0)) * 289.0,
+                v.y - Math.floor(v.y * (1.0 / 289.0)) * 289.0,
+                v.z - Math.floor(v.z * (1.0 / 289.0)) * 289.0
+            );
+        };
+        const mod289_vec4 = (x: number, y: number, z: number, w: number) => {
+            const m = (val: number) => val - Math.floor(val * (1.0 / 289.0)) * 289.0;
+            return [m(x), m(y), m(z), m(w)];
+        };
+        const permute_vec4 = (x: number, y: number, z: number, w: number) => {
+            const m = (val: number) => ((val * 34.0) + 1.0) * val;
+            const res = mod289_vec4(m(x), m(y), m(z), m(w));
+            return res;
+        };
+        const taylorInvSqrt_vec4 = (x: number, y: number, z: number, w: number) => {
+            const s = (val: number) => 1.79284291400159 - 0.85373472095314 * val;
+            return [s(x), s(y), s(z), s(w)];
+        };
 
         const snoise = (v: THREE.Vector3) => {
             const C = { x: 1.0 / 6.0, y: 1.0 / 3.0 };
             const D = { x: 0.0, y: 0.5, z: 1.0, w: 2.0 };
 
             // First corner
-            const i = new THREE.Vector3().copy(v).addScalar(v.x * C.y + v.y * C.y + v.z * C.y).floor();
-            const x0 = new THREE.Vector3().copy(v).sub(i.clone().subScalar(i.x * C.x + i.y * C.x + i.z * C.x));
+            const dot_v_Cyyy = v.x * C.y + v.y * C.y + v.z * C.y;
+            const i = new THREE.Vector3(
+                Math.floor(v.x + dot_v_Cyyy),
+                Math.floor(v.y + dot_v_Cyyy),
+                Math.floor(v.z + dot_v_Cyyy)
+            );
+            const dot_i_Cxxx = i.x * C.x + i.y * C.x + i.z * C.x;
+            const x0 = new THREE.Vector3(v.x - i.x + dot_i_Cxxx, v.y - i.y + dot_i_Cxxx, v.z - i.z + dot_i_Cxxx);
 
             // Other corners
-            const g = {
-                x: x0.x >= x0.y ? (x0.x >= x0.z ? 1 : 0) : 0,
-                y: x0.y >= x0.z ? (x0.y >= x0.x ? 1 : 0) : 0,
-                z: x0.z >= x0.x ? (x0.z >= x0.y ? 1 : 0) : 0
-            };
-            const l = { x: 1 - g.x, y: 1 - g.y, z: 1 - g.z };
-            const i1 = { x: Math.min(g.x, l.z), y: Math.min(g.y, l.x), z: Math.min(g.z, l.y) };
-            const i2 = { x: Math.max(g.x, l.z), y: Math.max(g.y, l.x), z: Math.max(g.z, l.y) };
+            const g = new THREE.Vector3(
+                x0.y <= x0.x ? 1 : 0,
+                x0.z <= x0.y ? 1 : 0,
+                x0.x <= x0.z ? 1 : 0
+            );
+            const l = new THREE.Vector3(1 - g.x, 1 - g.y, 1 - g.z);
+            const i1 = new THREE.Vector3(Math.min(g.x, l.z), Math.min(g.y, l.x), Math.min(g.z, l.y));
+            const i2 = new THREE.Vector3(Math.max(g.x, l.z), Math.max(g.y, l.x), Math.max(g.z, l.y));
 
-            const x1 = x0.clone().sub({ x: i1.x - C.x, y: i1.y - C.x, z: i1.z - C.x } as THREE.Vector3);
-            const x2 = x0.clone().sub({ x: i2.x - 2.0 * C.x, y: i2.y - 2.0 * C.x, z: i2.z - 2.0 * C.x } as THREE.Vector3);
-            const x3 = x0.clone().subScalar(D.y);
+            const x1 = new THREE.Vector3(x0.x - i1.x + C.x, x0.y - i1.y + C.x, x0.z - i1.z + C.x);
+            const x2 = new THREE.Vector3(x0.x - i2.x + C.y, x0.y - i2.y + C.y, x0.z - i2.z + C.y);
+            const x3 = new THREE.Vector3(x0.x - D.y, x0.y - D.y, x0.z - D.y);
 
             // Permutations
-            const i_m = { x: mod289(i.x), y: mod289(i.y), z: mod289(i.z) };
-            const p = (val: number) => permute(permute(permute(i_m.z + val) + i_m.y + val) + i_m.x + val);
+            const i_mod = mod289_vec3(i);
+            const p_z = [i_mod.z, i_mod.z + i1.z, i_mod.z + i2.z, i_mod.z + 1.0];
+            const p_y = [i_mod.y, i_mod.y + i1.y, i_mod.y + i2.y, i_mod.y + 1.0];
+            const p_x = [i_mod.x, i_mod.x + i1.x, i_mod.x + i2.x, i_mod.x + 1.0];
 
-            const p0 = p(0.0);
-            const p1 = p(i1.z); // This is simplified, real version uses vec4 permutations
-            // Real Simplex Noise porting is complex, using a simplified but effective version
-            // matching the "flavor" of the shader growth.
+            let p = permute_vec4(p_z[0], p_z[1], p_z[2], p_z[3]);
+            p = permute_vec4(p[0] + p_y[0], p[1] + p_y[1], p[2] + p_y[2], p[3] + p_y[3]);
+            p = permute_vec4(p[0] + p_x[0], p[1] + p_x[1], p[2] + p_x[2], p[3] + p_x[3]);
 
-            // Actually, for the "Natural Cut" the user wants, a simple dot-product based mask 
-            // is often sufficient if we use Island Detection. But to be perfect:
-            const align = v.clone().normalize().dot(new THREE.Vector3(0.8, -0.5, 0.3).normalize());
-            return align * 0.5 + 0.5; // Placeholder for snoise if exact port is too buggy 
+            const ns = [0.142857142857 * 2.0 - 0.0, 0.142857142857 * 0.5 - 0.0, 0.142857142857 * 1.0 - 0.0];
+            const j = [
+                p[0] - 49.0 * Math.floor(p[0] * ns[2] * ns[2]),
+                p[1] - 49.0 * Math.floor(p[1] * ns[2] * ns[2]),
+                p[2] - 49.0 * Math.floor(p[2] * ns[2] * ns[2]),
+                p[3] - 49.0 * Math.floor(p[3] * ns[2] * ns[2]),
+            ];
+
+            const x_ = [Math.floor(j[0] * ns[2]), Math.floor(j[1] * ns[2]), Math.floor(j[2] * ns[2]), Math.floor(j[3] * ns[2])];
+            const y_ = [Math.floor(j[0] - 7.0 * x_[0]), Math.floor(j[1] - 7.0 * x_[1]), Math.floor(j[2] - 7.0 * x_[2]), Math.floor(j[3] - 7.0 * x_[3])];
+
+            const x = [x_[0] * ns[0] + (-1.0), x_[1] * ns[0] + (-1.0), x_[2] * ns[0] + (-1.0), x_[3] * ns[0] + (-1.0)];
+            const y = [y_[0] * ns[0] + (-1.0), y_[1] * ns[0] + (-1.0), y_[2] * ns[0] + (-1.0), y_[3] * ns[0] + (-1.0)];
+            const h = [1.0 - Math.abs(x[0]) - Math.abs(y[0]), 1.0 - Math.abs(x[1]) - Math.abs(y[1]), 1.0 - Math.abs(x[2]) - Math.abs(y[2]), 1.0 - Math.abs(x[3]) - Math.abs(y[3])];
+
+            const b0 = [x[0], x[1], y[0], y[1]];
+            const b1 = [x[2], x[3], y[2], y[3]];
+
+            const s0 = [Math.floor(b0[0]) * 2.0 + 1.0, Math.floor(b0[1]) * 2.0 + 1.0, Math.floor(b0[2]) * 2.0 + 1.0, Math.floor(b0[3]) * 2.0 + 1.0];
+            const s1 = [Math.floor(b1[0]) * 2.0 + 1.0, Math.floor(b1[1]) * 2.0 + 1.0, Math.floor(b1[2]) * 2.0 + 1.0, Math.floor(b1[3]) * 2.0 + 1.0];
+
+            const sh = [h[0] < 0.0 ? -1.0 : 0.0, h[1] < 0.0 ? -1.0 : 0.0, h[2] < 0.0 ? -1.0 : 0.0, h[3] < 0.0 ? -1.0 : 0.0];
+
+            const a0 = [b0[0] + s0[0] * sh[0], b0[2] + s0[2] * sh[0], b0[1] + s0[1] * sh[1], b0[3] + s0[3] * sh[1]];
+            const a1 = [b1[0] + s1[0] * sh[2], b1[2] + s1[2] * sh[2], b1[1] + s1[1] * sh[3], b1[3] + s1[3] * sh[3]];
+
+            const p0 = new THREE.Vector3(a0[0], a0[1], h[0]);
+            const p1 = new THREE.Vector3(a0[2], a0[3], h[1]);
+            const p2 = new THREE.Vector3(a1[0], a1[1], h[2]);
+            const p3 = new THREE.Vector3(a1[2], a1[3], h[3]);
+
+            const norm = taylorInvSqrt_vec4(p0.dot(p0), p1.dot(p1), p2.dot(p2), p3.dot(p3));
+            p0.multiplyScalar(norm[0]);
+            p1.multiplyScalar(norm[1]);
+            p2.multiplyScalar(norm[2]);
+            p3.multiplyScalar(norm[3]);
+
+            const m = [
+                Math.max(0.6 - x0.dot(x0), 0.0),
+                Math.max(0.6 - x1.dot(x1), 0.0),
+                Math.max(0.6 - x2.dot(x2), 0.0),
+                Math.max(0.6 - x3.dot(x3), 0.0)
+            ];
+            const m2 = [m[0] * m[0], m[1] * m[1], m[2] * m[2], m[3] * m[3]];
+            const m4 = [m2[0] * m2[0], m2[1] * m2[1], m2[2] * m2[2], m2[3] * m2[3]];
+
+            const res = 42.0 * (m4[0] * p0.dot(x0) + m4[1] * p1.dot(x1) + m4[2] * p2.dot(x2) + m4[3] * p3.dot(x3));
+            return res;
         };
 
         const getGrowthAlpha = (pos: THREE.Vector3, seedPoint: THREE.Vector3, intensity: number) => {
-            if (intensity <= 0.0) return 0.0;
+            if (intensity <= 0.001) return 0.0;
             if (intensity >= 1.0) return 1.0;
             const posNorm = pos.clone().normalize();
             const seedNorm = seedPoint.clone().normalize();
@@ -421,9 +489,8 @@ export default function WorldQuiz() {
             const grad = align * 0.5 + 0.5;
 
             // Match shader: float n = snoise(posNorm * 3.5) * 0.5 + 0.5;
-            // For now, let's use a deterministic pseudo-random based on pos for the export
-            const n = (Math.sin(posNorm.x * 10 + posNorm.y * 20 + posNorm.z * 30) * 0.5 + 0.5);
-            const growthMap = grad * 0.85 + n * 0.15; // Match mix(grad, n, 0.15)
+            const n = snoise(posNorm.clone().multiplyScalar(3.5)) * 0.5 + 0.5;
+            const growthMap = grad * 0.85 + n * 0.15; // mix(grad, n, 0.15)
 
             const threshold = 1.05 - (intensity * 1.10);
             const edge0 = threshold;
@@ -435,6 +502,8 @@ export default function WorldQuiz() {
         const bakeMesh = (mesh: THREE.Mesh): THREE.BufferGeometry | null => {
             if (!mesh.geometry || !mesh.visible) return null;
 
+            const isPlanet = mesh.name === 'planet_base_mesh';
+
             // Expand indexed geometry to non-indexed for stability
             const rawGeo = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
             const geometry = new THREE.BufferGeometry();
@@ -443,19 +512,70 @@ export default function WorldQuiz() {
             const posAttr = rawGeo.attributes.position.clone();
             geometry.setAttribute('position', posAttr);
 
-            // 1. Bake Morph Targets (Handles Planet, Rings, Comets, Clouds)
+            // 1. Bake Morph Targets 
             if (mesh.morphTargetInfluences && rawGeo.morphAttributes?.position) {
                 const morphTargets = rawGeo.morphAttributes.position as THREE.BufferAttribute[];
                 const tempPos = new THREE.Vector3();
                 const morphPos = new THREE.Vector3();
 
+                // Multi-tone Alpha Calculation for Planet
+                const s1 = (allAnswers['Q1'] ?? 50) / 100;
+                const s2 = (allAnswers['Q2'] ?? 50) / 100;
+                const intenVolcano = (s1 < 0.5) ? (0.5 - s1) * 2.0 : 0.0;
+                const intenOcean = (s1 > 0.5) ? (s1 - 0.5) * 2.0 : 0.0;
+                const intenDesert = (s2 < 0.5) ? (0.5 - s2) * 2.0 : 0.0;
+                const intenForest = (s2 > 0.5) ? (s2 - 0.5) * 2.0 : 0.0;
+
+                const seedQ1 = new THREE.Vector3(0.0, 1.0, 0.0);
+                const seedQ2 = new THREE.Vector3(0.8, -0.5, 0.3);
+
+                // Morph Dictionary Mapping
+                const dict = mesh.morphTargetDictionary || {};
+                const typeMap: Record<number, number> = {}; // morphIdx -> type (0:Desert, 1:Ocean, 2:Volcan, 3:Forest)
+                for (const key in dict) {
+                    const k = key.toLowerCase();
+                    const idx = dict[key];
+                    if (k.includes('ocean')) typeMap[idx] = 1;
+                    else if (k.includes('desert')) typeMap[idx] = 0;
+                    else if (k.includes('volcan')) typeMap[idx] = 2;
+                    else if (k.includes('forest')) typeMap[idx] = 3;
+                }
+
                 for (let i = 0; i < posAttr.count; i++) {
                     tempPos.fromBufferAttribute(posAttr, i);
+
+                    // If planet, calculate masks for this vertex
+                    let maskV = 1.0, maskO = 1.0, maskD = 1.0, maskF = 0.0;
+                    if (isPlanet) {
+                        const aV = getGrowthAlpha(tempPos, seedQ1, intenVolcano);
+                        const aO = getGrowthAlpha(tempPos, seedQ1, intenOcean);
+                        const aD = getGrowthAlpha(tempPos, seedQ2, intenDesert);
+                        const aF = getGrowthAlpha(tempPos, seedQ2, intenForest);
+
+                        maskD = aD * (1.0 - aF);
+                        maskO = aO * (1.0 - aV) * (1.0 - aD) * (1.0 - aF);
+                        maskV = aV * (1.0 - aO) * (1.0 - aD) * (1.0 - aF);
+                        maskF = aF;
+                    }
+
                     for (let j = 0; j < mesh.morphTargetInfluences.length; j++) {
                         const influence = mesh.morphTargetInfluences[j];
-                        if (influence > 0.001) {
-                            morphPos.fromBufferAttribute(morphTargets[j], i);
-                            tempPos.addScaledVector(morphPos, influence);
+                        if (influence > 0.001 || isPlanet) {
+                            let weight = influence;
+                            const type = typeMap[j];
+
+                            if (isPlanet && type !== undefined) {
+                                if (type === 0) weight = maskD;
+                                else if (type === 1) weight = maskO;
+                                else if (type === 2) weight = maskV;
+                                else if (type === 3) weight = maskF;
+                                weight *= 1.8; // Match shader boost
+                            }
+
+                            if (weight > 0.001) {
+                                morphPos.fromBufferAttribute(morphTargets[j], i);
+                                tempPos.addScaledVector(morphPos, weight);
+                            }
                         }
                     }
                     posAttr.setXYZ(i, tempPos.x, tempPos.y, tempPos.z);
@@ -470,7 +590,7 @@ export default function WorldQuiz() {
             // Forest Port with Natural Cut (Island Detection)
             if (mesh.name === 'planet_forest_mesh' || mesh.name === 'planet_forest') {
                 const seedPoint = new THREE.Vector3(0.8, -0.5, 0.3);
-                const s2 = elementValues['Q2'] / 100;
+                const s2 = (allAnswers['Q2'] ?? 50) / 100;
                 const intenForest = s2 > 0.5 ? (s2 - 0.5) * 2.0 : 0.0;
 
                 const count = posAttr.count;
@@ -511,10 +631,12 @@ export default function WorldQuiz() {
                             const key = `${vx},${vy},${vz}`;
 
                             const sharedTris = vertexToTris[key];
-                            for (const sharedTri of sharedTris) {
-                                if (!triVisited[sharedTri]) {
-                                    triVisited[sharedTri] = 1;
-                                    queue.push(sharedTri);
+                            if (sharedTris) {
+                                for (const sharedTri of sharedTris) {
+                                    if (!triVisited[sharedTri]) {
+                                        triVisited[sharedTri] = 1;
+                                        queue.push(sharedTri);
+                                    }
                                 }
                             }
                         }
