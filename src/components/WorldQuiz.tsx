@@ -519,8 +519,8 @@ export default function WorldQuiz() {
                 const morphPos = new THREE.Vector3();
 
                 // Multi-tone Alpha Calculation for Planet
-                const s1 = (allAnswers['Q1'] ?? 50) / 100;
-                const s2 = (allAnswers['Q2'] ?? 50) / 100;
+                const s1 = (elementValues['Q1'] ?? 50) / 100;
+                const s2 = (elementValues['Q2'] ?? 50) / 100;
                 const intenVolcano = (s1 < 0.5) ? (0.5 - s1) * 2.0 : 0.0;
                 const intenOcean = (s1 > 0.5) ? (s1 - 0.5) * 2.0 : 0.0;
                 const intenDesert = (s2 < 0.5) ? (0.5 - s2) * 2.0 : 0.0;
@@ -590,7 +590,7 @@ export default function WorldQuiz() {
             // Forest Port with Natural Cut (Island Detection)
             if (mesh.name === 'planet_forest_mesh' || mesh.name === 'planet_forest') {
                 const seedPoint = new THREE.Vector3(0.8, -0.5, 0.3);
-                const s2 = (allAnswers['Q2'] ?? 50) / 100;
+                const s2 = (elementValues['Q2'] ?? 50) / 100;
                 const intenForest = s2 > 0.5 ? (s2 - 0.5) * 2.0 : 0.0;
 
                 const count = posAttr.count;
@@ -754,7 +754,8 @@ export default function WorldQuiz() {
         setPlanetLoading(true);
         setPlanetProgress(0);
         const startTime = Date.now();
-        const duration = 10000;
+        const duration = 7000;
+        // Reduced from 10000 to accelerate transition by 3s
 
         const interval = setInterval(() => {
             const elapsed = Date.now() - startTime;

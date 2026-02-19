@@ -164,7 +164,7 @@
     opacity: 0;
     transform: scale(0.85);
     pointer-events: none;
-    filter: drop-shadow(0 0 50px var(--glow-color, rgba(99, 102, 241, 0.3)));
+    filter: drop-shadow(0 0 30px var(--glow-color, rgba(99, 102, 241, 0.3)));
 }
 
 .planetImageWrapper.active {
@@ -676,10 +676,10 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: min(80vw, 500px);
+    width: min(70vw, 400px);
     /* Moderated size */
-    height: min(80vw, 500px);
-    background: radial-gradient(circle, var(--glow-color, rgba(99, 102, 241, 0.4)) 0%, transparent 75%);
+    height: min(70vw, 400px);
+    background: radial-gradient(circle, var(--glow-color, rgba(99, 102, 241, 0.4)) 0%, transparent 60%);
     /* Moderated spread */
     opacity: 0.6;
     /* Moderated opacity */
