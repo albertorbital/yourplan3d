@@ -334,10 +334,10 @@ export default function WorldQuiz() {
 
         switch (type) {
             case 'minusminus':
-                newValue = isStandard ? Math.max(0, sliderValue - 35) : Math.min(100, sliderValue + 35);
+                newValue = isStandard ? Math.max(0, sliderValue - 25) : Math.min(100, sliderValue + 25);
                 break;
             case 'minus':
-                newValue = isStandard ? Math.max(0, sliderValue - 25) : Math.min(100, sliderValue + 25);
+                newValue = isStandard ? Math.max(0, sliderValue - 15) : Math.min(100, sliderValue + 15);
                 break;
             case 'middle':
                 {
@@ -349,10 +349,10 @@ export default function WorldQuiz() {
                 }
                 break;
             case 'plus':
-                newValue = isStandard ? Math.min(100, sliderValue + 25) : Math.max(0, sliderValue - 25);
+                newValue = isStandard ? Math.min(100, sliderValue + 15) : Math.max(0, sliderValue - 15);
                 break;
             case 'plusplus':
-                newValue = isStandard ? Math.min(100, sliderValue + 35) : Math.max(0, sliderValue - 35);
+                newValue = isStandard ? Math.min(100, sliderValue + 25) : Math.max(0, sliderValue - 25);
                 break;
         }
 

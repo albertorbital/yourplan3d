@@ -14,7 +14,7 @@
     {
         "id": "E3",
         "trait": "Extraversion",
-        "statement": "I have no problem being the \"main character\" in a crowded room.",
+        "statement": "No problem being the \"main character\" in a crowded room.",
         "direction": "Standard (+)"
     },
     {
@@ -38,7 +38,7 @@
     {
         "id": "A2",
         "trait": "Agreeableness",
-        "statement": "I tend to point out when people are wrong, even if it causes tension.",
+        "statement": "Tend to point out when people are wrong even if it causes tension.",
         "direction": "Reverse (-)"
     },
     {
